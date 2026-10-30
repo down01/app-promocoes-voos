@@ -117,6 +117,21 @@ export default async function PaginaRota({
       ? ida.preco_atual + volta.preco_atual
       : null;
   const buscando = (pendentes ?? 0) > 0;
+  // Trocar a data pelo calendário: abre a nova viagem e já busca horários/companhias (voos=1)
+  const irPara = (novaIda: string, novaVolta: string | null) =>
+    `/ir?o=${rota.origem}&d=${rota.destino}&ida=${novaIda}` +
+    (novaVolta ? `&volta=${novaVolta}` : "") +
+    "&voos=1";
+  const diasDeViagem = rota.data_volta
+    ? Math.round((Date.parse(rota.data_volta) - Date.parse(rota.data_ida)) / 86400000)
+    : 0;
+  // Nova ida mantém o mesmo número de dias de viagem
+  const linkIda = (d: string) =>
+    irPara(d, rota.data_volta ? somarDias(d, diasDeViagem) : null);
+  // Nova volta não pode ser antes da ida
+  const linkVolta = (d: string) =>
+    d >= rota.data_ida ? irPara(rota.data_ida, d) : null;
+
   // Quando foi a última vez que esse preço foi conferido (busca detalhada ou atualização geral)
   const atualizadoEm =
     rota.ultima_busca_em ??
@@ -264,12 +279,14 @@ export default async function PaginaRota({
           titulo={`Preço da ida perto de ${data(rota.data_ida)}`}
           dias={calIda}
           escolhida={rota.data_ida}
+          linkDia={linkIda}
         />
         {rota.data_volta && (
           <CalendarioPrecos
             titulo={`Preço da volta perto de ${data(rota.data_volta)}`}
             dias={calVolta}
             escolhida={rota.data_volta}
+            linkDia={linkVolta}
           />
         )}
 
