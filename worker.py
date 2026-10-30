@@ -15,6 +15,7 @@ from datetime import date, datetime, timedelta, timezone
 import requests
 from playwright.sync_api import sync_playwright
 
+from aeroportos import BRASIL
 from avisos import enviar_email, enviar_push, enviar_telegram, montar_mensagem
 from db import Banco
 from promocao import deve_avisar, eh_promocao
@@ -58,6 +59,22 @@ def rotas_para_atualizar(banco):
     # Primeiro as rotas com alerta, depois as que estão há mais tempo sem atualizar
     rotas.sort(key=lambda r: (r["id"] not in com_alerta, r["ultima_busca_em"] or ""))
     return rotas[:MAX_BUSCAS]
+
+
+def rotas_das_promocoes(banco, quantidade=12):
+    """Viagens que aparecem nas promoções da página inicial: deixa horários e companhias prontos."""
+    br = f"({','.join(BRASIL)})"
+    campos = "origem,destino,data"
+    promocoes = (
+        banco.selecionar("promocoes", select=campos, origem=f"in.{br}", destino=f"in.{br}",
+                         order="preco", limit=quantidade)
+        + banco.selecionar("promocoes", select=campos, origem=f"in.{br}", destino=f"not.in.{br}",
+                           order="preco", limit=quantidade)
+        + banco.selecionar("promocoes", select=campos, origem=f"not.in.{br}", destino=f"in.{br}",
+                           order="preco", limit=quantidade // 4)
+    )
+    return [banco.rpc("registrar_rota", p_origem=p["origem"], p_destino=p["destino"], p_ida=p["data"])
+            for p in promocoes]
 
 
 def atualizar_rota(banco, pagina, rota):
@@ -163,9 +180,13 @@ def main():
     if a.pedidos:
         rotas = [p["rota"] for p in pedidos]
     else:
-        # A rodada completa também atende o que o site pediu, primeiro da fila
-        pedidas = {p["rota"]["id"] for p in pedidos}
-        rotas = [p["rota"] for p in pedidos] + [r for r in rotas_para_atualizar(banco) if r["id"] not in pedidas]
+        # A rodada completa atende primeiro o que o site pediu, depois as viagens pesquisadas
+        # e por fim as das promoções (para abrirem já com horários e companhias)
+        rotas, vistas = [], set()
+        for r in [p["rota"] for p in pedidos] + rotas_para_atualizar(banco) + rotas_das_promocoes(banco):
+            if r["id"] not in vistas:
+                vistas.add(r["id"])
+                rotas.append(r)
 
     print(f"{len(rotas)} rotas para buscar")
     with sync_playwright() as p:

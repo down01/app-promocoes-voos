@@ -34,6 +34,29 @@ def montar_url(origem, destino, ida, volta=None):
     return f"https://www.google.com/travel/flights?q={quote(consulta)}&hl=pt-BR&curr=BRL"
 
 
+# O Google às vezes junta os nomes ("Aerolineas ArgentinasGol"); separamos pelos nomes conhecidos
+COMPANHIAS_CONHECIDAS = [
+    "Aerolineas Argentinas", "American Airlines", "TAP Air Portugal", "Sky Airline", "Air France", "Air Europa",
+    "Qatar Airways", "Turkish Airlines", "British Airways", "Ethiopian Airlines", "Boliviana de Aviación",
+    "Emirates", "Lufthansa", "Iberia", "KLM", "United", "Delta", "Copa", "Avianca", "Paranair", "Arajet",
+    "JetSMART", "LATAM", "Gol", "Azul", "Flybondi", "Swiss", "ITA",
+]
+
+
+def separar_companhias(texto):
+    nomes = []
+    for pedaco in [p.strip() for p in texto.split(",") if p.strip()]:
+        resto, achadas = pedaco, []
+        while resto:
+            nome = next((n for n in COMPANHIAS_CONHECIDAS if resto.lower().startswith(n.lower())), None)
+            if not nome:
+                break
+            achadas.append(nome)
+            resto = resto[len(nome):].strip()
+        nomes += [pedaco] if resto else achadas
+    return ", ".join(dict.fromkeys(nomes))
+
+
 def ler_voo(texto):
     """Transforma o texto de um card de resultado em um dicionário."""
     linhas = [l.strip() for l in texto.splitlines() if l.strip() and l.strip() != "–"]
@@ -43,7 +66,7 @@ def ler_voo(texto):
         return None
     i_chegada = linhas.index(horas[1])
     companhia = linhas[i_chegada + 1] if i_chegada + 1 < len(linhas) else ""
-    companhia = companhia.split("Operado por")[0].strip()
+    companhia = separar_companhias(companhia.split("Operado por")[0].strip())
     return {
         "saida": horas[0],
         "chegada": horas[1],

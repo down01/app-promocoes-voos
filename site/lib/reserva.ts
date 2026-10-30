@@ -1,5 +1,6 @@
 // Links de reserva. Formatos de LATAM e Gol testados em 30/10/2026 (só ida e ida e volta).
-// A Azul não aceita link pronto; para ela e as demais, o Google Voos mostra "Reservar com …".
+// Azul e JetSMART não aceitam link pronto: para elas (e as demais) o Google Voos abre já filtrado
+// só naquela companhia ("on JetSMART" no texto da busca, testado em 30/10/2026).
 
 export type Companhia = { nome: string; cor: string; texto: string };
 
@@ -10,16 +11,41 @@ const CONHECIDAS: Record<string, Companhia> = {
   jetsmart: { nome: "JetSMART", cor: "#1e3a8a", texto: "#ffffff" },
 };
 
+// Nomes como o Google escreve. Às vezes vêm grudados ("Aerolineas ArgentinasGol"), então
+// separamos procurando estes nomes dentro do texto.
+const NOMES_CONHECIDOS = [
+  "Aerolineas Argentinas", "American Airlines", "TAP Air Portugal", "Sky Airline", "Air France", "Air Europa",
+  "Qatar Airways", "Turkish Airlines", "British Airways", "Ethiopian Airlines", "Boliviana de Aviación",
+  "Emirates", "Lufthansa", "Iberia", "KLM", "United", "Delta", "Copa", "Avianca", "Paranair", "Arajet",
+  "JetSMART", "LATAM", "Gol", "Azul", "Flybondi", "Swiss", "ITA",
+];
+
 export function companhias(texto: string) {
-  return texto.split(",").map((c) => c.trim()).filter(Boolean);
+  const partes: string[] = [];
+  for (const pedaco of texto.split(",").map((c) => c.trim()).filter(Boolean)) {
+    let resto = pedaco;
+    const achadas: string[] = [];
+    // Tira do começo do texto os nomes conhecidos, um por vez
+    while (resto) {
+      const nome = NOMES_CONHECIDOS.find((n) => resto.toLowerCase().startsWith(n.toLowerCase()));
+      if (!nome) break;
+      achadas.push(nome);
+      resto = resto.slice(nome.length).trim();
+    }
+    partes.push(...(resto ? [pedaco] : achadas)); // nome desconhecido: mantém o texto como veio
+  }
+  return [...new Set(partes)];
 }
 
 export function estiloCompanhia(nome: string): Companhia {
   return CONHECIDAS[nome.toLowerCase().replace(/\s/g, "")] ?? { nome, cor: "#334155", texto: "#ffffff" };
 }
 
-function googleVoos(origem: string, destino: string, ida: string, volta: string | null) {
-  const q = `Flights from ${origem} to ${destino} on ${ida}` + (volta ? ` through ${volta}` : " one way");
+function googleVoos(origem: string, destino: string, ida: string, volta: string | null, companhia?: string) {
+  const q =
+    `Flights from ${origem} to ${destino} on ${ida}` +
+    (volta ? ` through ${volta}` : " one way") +
+    (companhia ? ` on ${companhia}` : "");
   return `https://www.google.com/travel/flights?q=${encodeURIComponent(q)}&hl=pt-BR&curr=BRL`;
 }
 
@@ -55,5 +81,9 @@ export function linkReserva(companhia: string, origem: string, destino: string, 
     return { url: `https://b2c.voegol.com.br/compra/busca-parceiros?${p}`, destino: "site da Gol" };
   }
 
+  // Uma companhia só (Azul, JetSMART...): Google Voos já filtrado nela, com "Reservar com …"
+  if (lista.length === 1) {
+    return { url: googleVoos(origem, destino, ida, volta, lista[0]), destino: `Google Voos (só ${lista[0]})` };
+  }
   return { url: googleVoos(origem, destino, ida, volta), destino: "Google Voos" };
 }

@@ -41,7 +41,9 @@ export default function SemVoos({
   const opcoes = [
     { rotulo: "LATAM", ...linkReserva("LATAM", origem, destino, ida, volta), cor: "#1b0088" },
     { rotulo: "Gol", ...linkReserva("Gol", origem, destino, ida, volta), cor: "#ff5a00" },
-    { rotulo: "Azul e outras", ...linkReserva("", origem, destino, ida, volta), cor: "#0b4ea2" },
+    { rotulo: "Azul", ...linkReserva("Azul", origem, destino, ida, volta), cor: "#0b4ea2" },
+    { rotulo: "JetSMART", ...linkReserva("JetSMART", origem, destino, ida, volta), cor: "#1e3a8a" },
+    { rotulo: "Todas as companhias", ...linkReserva("", origem, destino, ida, volta), cor: "#334155" },
   ];
 
   return (
@@ -52,7 +54,7 @@ export default function SemVoos({
           Abre o site da companhia já com a rota e a data. O preço mostrado acima é da última atualização.
         </p>
       </div>
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 [&>a:last-child]:col-span-full">
         {opcoes.map((o) => (
           <a
             key={o.rotulo}
