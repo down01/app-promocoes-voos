@@ -1,0 +1,83 @@
+name: Atualização geral (0h, 6h, 12h e 18h)
+
+on:
+  schedule:
+    - cron: "0 3,9,15,21 * * *"   # UTC → 00h, 06h, 12h e 18h em Brasília
+  workflow_dispatch:
+    inputs:
+      escopo:
+        description: "O que atualizar"
+        type: choice
+        options: [tudo, nacional, internacional]
+        default: tudo
+
+concurrency:
+  group: atualizacao-geral
+  cancel-in-progress: false
+
+jobs:
+  nacional:
+    if: ${{ github.event_name == 'schedule' || inputs.escopo != 'internacional' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        parte: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Calendário nacional (parte ${{ matrix.parte }})
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: python calendario.py nacional --parte ${{ matrix.parte }} --partes 20
+
+  internacional:
+    needs: nacional
+    if: ${{ always() && (github.event_name == 'schedule' || inputs.escopo != 'nacional') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        parte: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Calendário internacional (parte ${{ matrix.parte }})
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: python calendario.py internacional --parte ${{ matrix.parte }} --partes 20
+
+  alertas:
+    # Depois do calendário: atualiza as viagens pesquisadas no site e manda os avisos
+    needs: [nacional, internacional]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Viagens pesquisadas e avisos
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EMAIL_REMETENTE: ${{ secrets.EMAIL_REMETENTE }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+        run: python worker.py

@@ -27,7 +27,6 @@ export default function CriarAlerta({
   const [limiteIda, setLimiteIda] = useState("");
   const [limiteVolta, setLimiteVolta] = useState("");
   const [email, setEmail] = useState(true);
-  const [telegram, setTelegram] = useState(false);
   const [push, setPush] = useState(false);
   const [estado, setEstado] = useState<"" | "salvando" | "pronto" | "erro">(jaTem ? "pronto" : "");
 
@@ -70,7 +69,6 @@ export default function CriarAlerta({
       limite_ida: numero(limiteIda),
       limite_volta: idaEVolta ? numero(limiteVolta) : null,
       avisar_email: email,
-      avisar_telegram: telegram,
       avisar_push: push,
     });
     setEstado(error ? "erro" : "pronto");
@@ -109,10 +107,6 @@ export default function CriarAlerta({
         <legend className="mb-1 font-medium text-slate-600">Como avisar</legend>
         <label className="flex items-center gap-2">
           <input type="checkbox" checked={email} onChange={(e) => setEmail(e.target.checked)} /> E-mail
-        </label>
-        <label className="flex items-center gap-2">
-          <input type="checkbox" checked={telegram} onChange={(e) => setTelegram(e.target.checked)} /> Telegram
-          <span className="text-slate-400">(ligue em Meus alertas)</span>
         </label>
         <label className="flex items-center gap-2">
           <input type="checkbox" checked={push} onChange={(e) => setPush(e.target.checked)} /> Notificação no celular

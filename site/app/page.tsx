@@ -2,8 +2,10 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { clienteServidor } from "@/lib/supabase/server";
 import { data, haQuantoTempo, reais, trajeto } from "@/lib/formato";
+import { BRASIL } from "@/lib/aeroportos";
 import type { Rota } from "@/lib/tipos";
 import FormBusca from "./FormBusca";
+import MaisBaratas, { type Promocao } from "./MaisBaratas";
 
 export default async function Inicio() {
   await connection(); // preços e "atualizado há X" mudam a cada visita
@@ -15,7 +17,20 @@ export default async function Inicio() {
     .not("preco_atual", "is", null)
     .gte("data_ida", hoje)
     .order("ultima_busca_em", { ascending: false })
-    .limit(12);
+    .limit(6);
+
+  const brasil = `(${BRASIL.join(",")})`;
+  const [{ data: nacionais }, { data: paraFora }, { data: paraCasa }] = await Promise.all([
+    supabase.from("promocoes").select("origem,destino,data,preco")
+      .filter("origem", "in", brasil).filter("destino", "in", brasil).order("preco").limit(9),
+    supabase.from("promocoes").select("origem,destino,data,preco")
+      .filter("origem", "in", brasil).not("destino", "in", brasil).order("preco").limit(9),
+    supabase.from("promocoes").select("origem,destino,data,preco")
+      .not("origem", "in", brasil).filter("destino", "in", brasil).order("preco").limit(3),
+  ]);
+  const internacionais = [...(paraFora ?? []), ...(paraCasa ?? [])]
+    .sort((a, b) => a.preco - b.preco)
+    .slice(0, 9) as Promocao[];
 
   return (
     <div className="grid gap-8">
@@ -30,9 +45,12 @@ export default async function Inicio() {
         <FormBusca />
       </section>
 
+      <MaisBaratas titulo="🇧🇷 Mais baratas no Brasil" promocoes={(nacionais ?? []) as Promocao[]} />
+      <MaisBaratas titulo="🌎 Mais baratas para fora" promocoes={internacionais} />
+
       {rotas && rotas.length > 0 && (
         <section className="grid gap-3">
-          <h2 className="text-lg font-semibold">Preços acompanhados agora</h2>
+          <h2 className="text-lg font-semibold">Pesquisadas recentemente</h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {(rotas as Rota[]).map((r) => (
               <Link key={r.id} href={`/rota/${r.id}`} className="cartao grid gap-1 transition hover:border-sky-300">

@@ -36,6 +36,14 @@ export const AEROPORTOS: Record<string, string> = {
   SYD: "Sydney", MEL: "Melbourne", AKL: "Auckland",
 };
 
+// Os 45 da atualização geral nacional (mesma lista de aeroportos.py)
+export const BRASIL = [
+  "VIX", "BSB", "GRU", "CGH", "VCP", "GIG", "SDU", "CNF", "SSA", "REC", "FOR", "POA", "CWB", "FLN",
+  "BEL", "MAO", "GYN", "CGB", "CGR", "NAT", "MCZ", "JPA", "AJU", "THE", "SLZ", "PMW", "PVH", "RBR",
+  "BVB", "MCP", "IGU", "NVT", "LDB", "UDI", "IOS", "BPS", "JDO", "MOC", "RAO", "SJP", "MGF", "JOI",
+  "XAP", "STM", "IMP",
+];
+
 export function nomeAeroporto(codigo: string) {
   return AEROPORTOS[codigo] ? `${AEROPORTOS[codigo]} (${codigo})` : codigo;
 }

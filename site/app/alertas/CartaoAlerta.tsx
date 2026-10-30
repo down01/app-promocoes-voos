@@ -48,9 +48,6 @@ export default function CartaoAlerta({ alerta }: { alerta: Alerta }) {
           <input type="checkbox" checked={a.avisar_email} onChange={(e) => mudar({ avisar_email: e.target.checked })} /> E-mail
         </label>
         <label className="flex items-center gap-1.5">
-          <input type="checkbox" checked={a.avisar_telegram} onChange={(e) => mudar({ avisar_telegram: e.target.checked })} /> Telegram
-        </label>
-        <label className="flex items-center gap-1.5">
           <input type="checkbox" checked={a.avisar_push} onChange={(e) => mudar({ avisar_push: e.target.checked })} /> Celular
         </label>
         <span className="flex-1" />

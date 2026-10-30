@@ -24,8 +24,8 @@ class Banco:
     def selecionar(self, tabela, **params):
         return self._req("GET", f"/rest/v1/{tabela}", params=params)
 
-    def inserir(self, tabela, dados, conflito=None):
-        headers = {"Prefer": "return=representation"}
+    def inserir(self, tabela, dados, conflito=None, retornar=True):
+        headers = {"Prefer": "return=representation" if retornar else "return=minimal"}
         params = {}
         if conflito:
             headers["Prefer"] += ",resolution=merge-duplicates"

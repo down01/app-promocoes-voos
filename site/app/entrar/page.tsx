@@ -1,5 +1,8 @@
 import FormEntrar from "./FormEntrar";
 
+// Lê ?next= e ?erro= da URL a cada visita
+export const instant = false;
+
 export default async function Entrar({ searchParams }: { searchParams: Promise<{ next?: string; erro?: string }> }) {
   const { next, erro } = await searchParams;
   return (

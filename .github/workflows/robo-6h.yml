@@ -1,8 +1,8 @@
-name: Robô de preços (a cada 6 horas)
+name: Robô de buscas do site
 
+# As rodadas de 6 em 6 horas ficam em atualizacao-geral.yml.
+# Este é chamado pelo site (modo "pedidos") quando alguém pesquisa uma viagem nova.
 on:
-  schedule:
-    - cron: "0 */6 * * *"   # 00h, 06h, 12h e 18h UTC (21h, 03h, 09h e 15h em Brasília)
   workflow_dispatch:
     inputs:
       modo:
@@ -35,7 +35,6 @@ jobs:
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           EMAIL_REMETENTE: ${{ secrets.EMAIL_REMETENTE }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
           VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
         run: python worker.py ${{ inputs.modo == 'pedidos' && '--pedidos' || '' }}
