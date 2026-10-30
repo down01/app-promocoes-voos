@@ -1,0 +1,49 @@
+name: Robô de preços (a cada 6 horas)
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"   # 00h, 06h, 12h e 18h UTC (21h, 03h, 09h e 15h em Brasília)
+  workflow_dispatch:
+    inputs:
+      modo:
+        description: "completo = todas as rotas; pedidos = só as buscas pedidas pelo site"
+        type: choice
+        options: [completo, pedidos]
+        default: completo
+
+concurrency:
+  group: robo-${{ inputs.modo || 'completo' }}
+  cancel-in-progress: false
+
+jobs:
+  rodar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Rodar o robô
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EMAIL_REMETENTE: ${{ secrets.EMAIL_REMETENTE }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+        run: python worker.py ${{ inputs.modo == 'pedidos' && '--pedidos' || '' }}
+
+      - name: Guardar capturas de falha
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: falhas
+          path: falha_*.png
+          if-no-files-found: ignore
