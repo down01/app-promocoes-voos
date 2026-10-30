@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.env
+.env.*
+falha_*.png
+historico_precos.csv
+varredura_*.csv

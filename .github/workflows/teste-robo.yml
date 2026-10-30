@@ -1,0 +1,52 @@
+name: Teste do robô na nuvem
+
+on:
+  workflow_dispatch:
+    inputs:
+      origem:
+        description: "Aeroporto de origem"
+        default: "VIX"
+      destino:
+        description: "Aeroporto de destino"
+        default: "SCL"
+      ida:
+        description: "Data de ida (AAAA-MM-DD)"
+        default: "2027-04-29"
+      volta:
+        description: "Data de volta (AAAA-MM-DD, opcional)"
+        default: "2027-05-07"
+
+jobs:
+  buscar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar Playwright
+        run: pip install playwright==1.64.1
+
+      - name: Buscar ida e volta
+        run: python robo_voos.py ${{ inputs.origem }} ${{ inputs.destino }} ${{ inputs.ida }} ${{ inputs.volta }}
+
+      - name: Buscar só a ida
+        if: always()
+        run: python robo_voos.py ${{ inputs.origem }} ${{ inputs.destino }} ${{ inputs.ida }}
+
+      - name: Buscar só a volta
+        if: always() && inputs.volta != ''
+        run: python robo_voos.py ${{ inputs.destino }} ${{ inputs.origem }} ${{ inputs.volta }}
+
+      - name: Guardar capturas de falha
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resultado
+          path: |
+            falha_*.png
+            historico_precos.csv
+          if-no-files-found: ignore
