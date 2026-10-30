@@ -70,9 +70,11 @@ def rotas_para_atualizar(banco):
 
 
 def rotas_das_promocoes(banco, quantidade=12):
-    """Viagens que aparecem nas promoções da página inicial: deixa horários e companhias prontos."""
+    """Viagens das promoções da página inicial que ainda não foram conferidas com uma busca de voos.
+    O calendário do Google às vezes mostra um preço que não existe; a busca confirma (ou corrige)
+    o preço e deixa horários e companhias prontos."""
     br = f"({','.join(BRASIL)})"
-    campos = "origem,destino,data"
+    campos = "origem,destino,data,preco"
     promocoes = (
         banco.selecionar("promocoes", select=campos, origem=f"in.{br}", destino=f"in.{br}",
                          order="preco", limit=quantidade)
@@ -81,8 +83,13 @@ def rotas_das_promocoes(banco, quantidade=12):
         + banco.selecionar("promocoes", select=campos, origem=f"not.in.{br}", destino=f"in.{br}",
                            order="preco", limit=quantidade // 4)
     )
-    return [banco.rpc("registrar_rota", p_origem=p["origem"], p_destino=p["destino"], p_ida=p["data"])
-            for p in promocoes]
+    recente = (agora() - timedelta(hours=8)).isoformat()
+    faltam = []
+    for p in promocoes:
+        r = banco.rpc("registrar_rota", p_origem=p["origem"], p_destino=p["destino"], p_ida=p["data"])
+        if r.get("preco_atual") != p["preco"] or (r.get("ultima_busca_em") or "") < recente:
+            faltam.append(r)
+    return faltam
 
 
 def gravar_rota(banco, rota, voos, url):
@@ -91,6 +98,11 @@ def gravar_rota(banco, rota, voos, url):
                               "ultima_busca_em": agora().isoformat()}, id=f"eq.{rota['id']}")
     banco.inserir("precos", {"rota_id": rota["id"], "menor_preco": m["preco"], "companhia": m["companhia"],
                              "saida": m["saida"], "chegada": m["chegada"], "paradas": m["paradas"]})
+    if not rota["data_volta"]:
+        # O preço achado nos voos vale mais que o do calendário (que às vezes mostra preço fantasma)
+        banco.inserir("calendario", {"origem": rota["origem"], "destino": rota["destino"], "data": rota["data_ida"],
+                                     "preco": m["preco"], "atualizado_em": agora().isoformat()},
+                      conflito="origem,destino,data", retornar=False)
     return m["preco"]
 
 
@@ -274,15 +286,18 @@ def main():
         # Só os pedidos do site (lidos dentro de buscar_rotas), esperando um pouco por novos no fim
         asyncio.run(buscar_rotas(banco, [], espera=ESPERA_PEDIDOS))
     else:
-        # A rodada completa atende os pedidos do site (sempre na frente), depois as viagens
-        # pesquisadas e por fim as das promoções (para abrirem já com horários e companhias)
-        rotas, vistas = [], set()
-        for r in rotas_para_atualizar(banco) + rotas_das_promocoes(banco):
-            if r["id"] not in vistas:
-                vistas.add(r["id"])
-                rotas.append(r)
+        # A rodada completa atende os pedidos do site (sempre na frente) e as viagens pesquisadas
+        rotas = rotas_para_atualizar(banco)
         print(f"{len(rotas)} rotas para buscar, {ABAS} abas", flush=True)
         asyncio.run(buscar_rotas(banco, rotas))
+        # Depois confere as promoções. Quando uma estava com preço fantasma, o calendário é corrigido
+        # e outra viagem sobe para o topo; repete até as do topo baterem com a busca
+        for rodada in range(1, 5):
+            faltam = rotas_das_promocoes(banco)
+            if not faltam:
+                break
+            print(f"Conferindo promoções ({rodada}ª vez): {len(faltam)} viagens", flush=True)
+            asyncio.run(buscar_rotas(banco, faltam))
     print(f"Buscas terminadas em {(time.time() - inicio) / 60:.1f} min", flush=True)
 
     print(f"{conferir_alertas(banco, a.simular)} avisos enviados")
