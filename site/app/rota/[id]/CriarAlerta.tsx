@@ -44,10 +44,17 @@ export default function CriarAlerta({
   if (!logado) {
     return (
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-        <span className="text-amber-900">🔔 Quer ser avisado quando o preço cair?</span>
-        <Link href={`/entrar?next=${encodeURIComponent(caminho)}`} className="botao">
-          Entrar e criar alerta
-        </Link>
+        <span className="text-amber-900">
+          🔔 Quer ser avisado quando o preço cair? Para receber alertas é preciso ter conta.
+        </span>
+        <div className="flex flex-wrap gap-2">
+          <Link href={`/entrar?modo=criar&next=${encodeURIComponent(caminho)}`} className="botao">
+            Criar conta
+          </Link>
+          <Link href={`/entrar?next=${encodeURIComponent(caminho)}`} className="botao-secundario">
+            Entrar
+          </Link>
+        </div>
       </div>
     );
   }
