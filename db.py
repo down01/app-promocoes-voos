@@ -6,8 +6,10 @@ import requests
 
 class Banco:
     def __init__(self, url=None, chave=None):
-        self.url = (url or os.environ["SUPABASE_URL"]).rstrip("/")
-        chave = chave or os.environ["SUPABASE_SECRET_KEY"]
+        self.url = (url or os.environ["SUPABASE_URL"]).strip().rstrip("/")
+        chave = (chave or os.environ["SUPABASE_SECRET_KEY"]).strip()  # espaço/quebra de linha ao colar
+        if chave.startswith("sb_publishable_"):
+            raise SystemExit("SUPABASE_SECRET_KEY contém a publishable key; use a secret key (sb_secret_...).")
         self.sessao = requests.Session()
         # Chaves novas (sb_secret_...) vão só no cabeçalho apikey; no Authorization o Supabase recusa
         self.sessao.headers.update({"apikey": chave, "Content-Type": "application/json"})
