@@ -105,8 +105,35 @@ def buscar_na_pagina(pagina, origem, destino, ida, volta=None):
             pass
         return [], url
     pagina.wait_for_timeout(2000)
-    textos = pagina.locator("li:has-text('R$')").all_inner_texts()
+    return organizar(pagina.locator("li:has-text('R$')").all_inner_texts()), url
 
+
+# Resultado, ou o aviso de cookies que às vezes aparece antes dele
+SELETOR_RESULTADO = "li:has-text('R$'), button:has-text('Rejeitar tudo'), button:has-text('Recusar tudo')"
+
+
+async def buscar_na_pagina_async(pagina, origem, destino, ida, volta=None):
+    """Mesma busca, para rodar em várias abas ao mesmo tempo (playwright.async_api)."""
+    url = montar_url(origem, destino, ida, volta)
+    await pagina.goto(url, wait_until="domcontentloaded")
+    try:
+        for _ in range(2):
+            achado = await pagina.wait_for_selector(SELETOR_RESULTADO, timeout=30000)
+            if await achado.evaluate("e => e.tagName") != "BUTTON":
+                break
+            await achado.click()  # recusa os cookies opcionais e espera o resultado
+    except Exception:
+        try:
+            await pagina.screenshot(path=str(PASTA / f"falha_{origem}_{destino}.png"), full_page=True)
+        except Exception:
+            pass
+        return [], url
+    await pagina.wait_for_timeout(2000)  # os outros cards terminam de chegar
+    return organizar(await pagina.locator("li:has-text('R$')").all_inner_texts()), url
+
+
+def organizar(textos):
+    """Cards de resultado → voos sem repetição, do mais barato ao mais caro."""
     voos, vistos = [], set()
     for texto in textos:
         voo = ler_voo(texto)
@@ -116,7 +143,7 @@ def buscar_na_pagina(pagina, origem, destino, ida, volta=None):
         if chave not in vistos:
             vistos.add(chave)
             voos.append(voo)
-    return sorted(voos, key=lambda v: v["preco"]), url
+    return sorted(voos, key=lambda v: v["preco"])
 
 
 def salvar_historico(origem, destino, ida, volta, voos):

@@ -8,21 +8,29 @@ Precisa das variáveis SUPABASE_URL e SUPABASE_SECRET_KEY. Canais de aviso opcio
 RESEND_API_KEY, TELEGRAM_BOT_TOKEN, VAPID_PRIVATE_KEY.
 """
 import argparse
+import asyncio
+import itertools
 import os
 import random
+import time
 from datetime import date, datetime, timedelta, timezone
 
 import requests
-from playwright.sync_api import sync_playwright
+from playwright.async_api import async_playwright
 
 from aeroportos import BRASIL
 from avisos import enviar_email, enviar_push, enviar_telegram, montar_mensagem
 from db import Banco
 from promocao import deve_avisar, eh_promocao
-from robo_voos import buscar_na_pagina
+from robo_voos import buscar_na_pagina_async
 
 MAX_BUSCAS = int(os.environ.get("MAX_BUSCAS", "60"))
 DIAS_DE_INTERESSE = 30  # rota sem ninguém pesquisando/monitorando há 30 dias deixa de ser atualizada
+ABAS = int(os.environ.get("ABAS", "4"))  # buscas ao mesmo tempo
+# No modo --pedidos o robô fica ligado um pouco depois da fila acabar: quem pesquisar nesse tempo
+# não espera o GitHub ligar outra máquina. Depois de MAX_MINUTOS para de aceitar pedidos novos.
+ESPERA_PEDIDOS = int(os.environ.get("ESPERA_PEDIDOS", "90"))
+MAX_MINUTOS = int(os.environ.get("MAX_MINUTOS", "35"))
 
 
 def agora():
@@ -77,16 +85,103 @@ def rotas_das_promocoes(banco, quantidade=12):
             for p in promocoes]
 
 
-def atualizar_rota(banco, pagina, rota):
-    voos, url = buscar_na_pagina(pagina, rota["origem"], rota["destino"], rota["data_ida"], rota["data_volta"])
-    if not voos:
-        return None
+def gravar_rota(banco, rota, voos, url):
     m = voos[0]
     banco.atualizar("rotas", {"preco_atual": m["preco"], "voos_atuais": voos[:15], "link": url,
                               "ultima_busca_em": agora().isoformat()}, id=f"eq.{rota['id']}")
     banco.inserir("precos", {"rota_id": rota["id"], "menor_preco": m["preco"], "companhia": m["companhia"],
                              "saida": m["saida"], "chegada": m["chegada"], "paradas": m["paradas"]})
     return m["preco"]
+
+
+def pegar_pedidos(banco):
+    pedidos = banco.selecionar("pedidos_busca", select="id,rota:rotas(*)", status="eq.pendente")
+    for p in pedidos:
+        banco.atualizar("pedidos_busca", {"status": "buscando"}, id=f"eq.{p['id']}")
+    return pedidos
+
+
+def concluir_pedidos(banco, ids):
+    banco.atualizar("pedidos_busca", {"status": "pronto", "concluido_em": agora().isoformat()},
+                    id=f"in.({','.join(map(str, ids))})")
+
+
+async def buscar_rotas(banco, rotas, abas=ABAS, espera=0, max_minutos=MAX_MINUTOS):
+    """Busca as rotas em várias abas. A cada 5 s olha se o site pediu buscas novas, que passam
+    na frente da fila; cada pedido fica pronto assim que a sua rota termina."""
+    fila = asyncio.PriorityQueue()
+    ordem = itertools.count(1)
+    pedidos_da_rota = {}  # rota_id → pedidos esperando por ela
+    estado = {"ocupadas": 0, "fim": False}
+    inicio = time.monotonic()
+
+    def enfileirar(rota, prioridade):
+        fila.put_nowait((prioridade, next(ordem), rota))
+
+    for r in rotas:
+        enfileirar(r, 1)
+
+    async def vigiar():
+        parado_desde = None
+        while True:
+            if time.monotonic() - inicio < max_minutos * 60:
+                try:
+                    for p in await asyncio.to_thread(pegar_pedidos, banco):
+                        rota = p["rota"]
+                        if rota["id"] not in pedidos_da_rota:
+                            enfileirar(rota, 0)
+                        pedidos_da_rota.setdefault(rota["id"], []).append(p["id"])
+                except Exception as e:  # banco fora do ar por um instante: tenta na próxima
+                    print(f"  erro ao ler pedidos: {e}", flush=True)
+            if fila.empty() and estado["ocupadas"] == 0:
+                parado_desde = parado_desde or time.monotonic()
+                if time.monotonic() - parado_desde >= espera:
+                    estado["fim"] = True
+                    return
+            else:
+                parado_desde = None
+            await asyncio.sleep(5)
+
+    async def aba(contexto):
+        pagina = await contexto.new_page()
+        while not estado["fim"]:
+            try:
+                _, n, rota = await asyncio.wait_for(fila.get(), timeout=1)
+            except asyncio.TimeoutError:
+                continue
+            estado["ocupadas"] += 1
+            preco = None
+            try:
+                voos, url = await buscar_na_pagina_async(pagina, rota["origem"], rota["destino"],
+                                                         rota["data_ida"], rota["data_volta"])
+                if voos:
+                    preco = await asyncio.to_thread(gravar_rota, banco, rota, voos, url)
+            except Exception as e:  # uma rota com problema não pode parar as outras
+                print(f"  erro em {rota['id']}: {e}", flush=True)
+            ids = pedidos_da_rota.pop(rota["id"], [])
+            if ids:
+                try:
+                    await asyncio.to_thread(concluir_pedidos, banco, ids)
+                except Exception as e:
+                    print(f"  erro ao concluir pedidos {ids}: {e}", flush=True)
+            volta = f" a {rota['data_volta']}" if rota["data_volta"] else ""
+            print(f"[{n}] {rota['origem']}→{rota['destino']} {rota['data_ida']}{volta}: "
+                  f"{'R$ ' + str(preco) if preco else 'sem resultado'}{' (pedido do site)' if ids else ''}",
+                  flush=True)
+            estado["ocupadas"] -= 1
+            await pagina.wait_for_timeout(random.randint(1000, 2500))
+        await pagina.close()
+
+    async with async_playwright() as p:
+        navegador = await p.chromium.launch(channel="chrome", headless=True)
+        contexto = await navegador.new_context(locale="pt-BR")
+        await asyncio.gather(vigiar(), *(aba(contexto) for _ in range(abas)))
+        await navegador.close()
+
+    # Pedidos que chegaram no último instante voltam para a fila do próximo robô
+    sobra = [i for ids in pedidos_da_rota.values() for i in ids]
+    if sobra:
+        banco.atualizar("pedidos_busca", {"status": "pendente"}, id=f"in.({','.join(map(str, sobra))})")
 
 
 def historico(banco, rota_id):
@@ -174,39 +269,21 @@ def main():
     banco = Banco()
 
     vincular_telegram(banco)
-    pedidos = banco.selecionar("pedidos_busca", select="id,rota:rotas(*)", status="eq.pendente")
-    for p in pedidos:
-        banco.atualizar("pedidos_busca", {"status": "buscando"}, id=f"eq.{p['id']}")
+    inicio = time.time()
     if a.pedidos:
-        rotas = [p["rota"] for p in pedidos]
+        # Só os pedidos do site (lidos dentro de buscar_rotas), esperando um pouco por novos no fim
+        asyncio.run(buscar_rotas(banco, [], espera=ESPERA_PEDIDOS))
     else:
-        # A rodada completa atende primeiro o que o site pediu, depois as viagens pesquisadas
-        # e por fim as das promoções (para abrirem já com horários e companhias)
+        # A rodada completa atende os pedidos do site (sempre na frente), depois as viagens
+        # pesquisadas e por fim as das promoções (para abrirem já com horários e companhias)
         rotas, vistas = [], set()
-        for r in [p["rota"] for p in pedidos] + rotas_para_atualizar(banco) + rotas_das_promocoes(banco):
+        for r in rotas_para_atualizar(banco) + rotas_das_promocoes(banco):
             if r["id"] not in vistas:
                 vistas.add(r["id"])
                 rotas.append(r)
-
-    print(f"{len(rotas)} rotas para buscar")
-    with sync_playwright() as p:
-        navegador = p.chromium.launch(channel="chrome", headless=True)
-        pagina = navegador.new_page(locale="pt-BR")
-        for n, rota in enumerate(rotas, 1):
-            try:
-                preco = atualizar_rota(banco, pagina, rota)
-            except Exception as e:  # uma rota com problema não pode parar as outras
-                print(f"  erro em {rota['id']}: {e}")
-                preco = None
-            volta = f" a {rota['data_volta']}" if rota["data_volta"] else ""
-            print(f"[{n}/{len(rotas)}] {rota['origem']}→{rota['destino']} {rota['data_ida']}{volta}: "
-                  f"{'R$ ' + str(preco) if preco else 'sem resultado'}", flush=True)
-            pagina.wait_for_timeout(random.randint(1500, 3500))
-        navegador.close()
-
-    for p in pedidos:
-        banco.atualizar("pedidos_busca", {"status": "pronto", "concluido_em": agora().isoformat()},
-                        id=f"eq.{p['id']}")
+        print(f"{len(rotas)} rotas para buscar, {ABAS} abas", flush=True)
+        asyncio.run(buscar_rotas(banco, rotas))
+    print(f"Buscas terminadas em {(time.time() - inicio) / 60:.1f} min", flush=True)
 
     print(f"{conferir_alertas(banco, a.simular)} avisos enviados")
 
