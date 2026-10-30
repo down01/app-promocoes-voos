@@ -52,18 +52,22 @@ async def ler_calendario(pagina, origem, destino, meses=MESES):
     )
     precos = await ler_dias(pagina)
     avancar = pagina.locator("[role='dialog'] [aria-label='Avançar']").last
-    for _ in range(meses - 1):
+    limite = (date.today() + timedelta(days=31 * meses)).isoformat()
+    vazios = 0
+    for _ in range(meses + 1):
+        if precos and max(precos) >= limite:
+            break
         antes = len(precos)
         await avancar.click(timeout=10000)
-        for _ in range(12):  # até ~2,4 s esperando os dias novos carregarem
+        for _ in range(40):  # até ~8 s esperando os dias novos (no GitHub às vezes passa de 2 s)
             await pagina.wait_for_timeout(200)
             novos = await ler_dias(pagina)
             if len(set(novos) - set(precos)) >= 20:
                 break
         precos.update(novos)
-        if len(precos) == antes:
-            break  # o Google não tem mais meses com preço
-    limite = (date.today() + timedelta(days=31 * meses)).isoformat()
+        vazios = vazios + 1 if len(precos) == antes else 0
+        if vazios == 2:
+            break  # dois avanços sem preço novo: o Google não tem mais meses com preço
     hoje = date.today().isoformat()
     return {d: p for d, p in precos.items() if hoje <= d <= limite}
 
