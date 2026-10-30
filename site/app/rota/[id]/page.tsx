@@ -7,6 +7,9 @@ import AtualizarSozinho from "./AtualizarSozinho";
 import CriarAlerta from "./CriarAlerta";
 import Historico from "./Historico";
 
+// Página sempre com preço fresco (atualiza enquanto o robô busca), então pode esperar os dados
+export const instant = false;
+
 export default async function PaginaRota({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   await connection(); // preços e "atualizado há X" mudam a cada visita
