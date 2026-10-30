@@ -6,11 +6,12 @@ import type { Rota } from "@/lib/tipos";
 import Bilhete from "../../Bilhete";
 import AtualizarSozinho from "./AtualizarSozinho";
 import ListaVoos from "./ListaVoos";
+import SemVoos from "./SemVoos";
 import CalendarioPrecos from "./CalendarioPrecos";
 import CriarAlerta from "./CriarAlerta";
 import Historico from "./Historico";
 
-type Dia = { data: string; preco: number };
+type Dia = { data: string; preco: number; atualizado_em: string };
 
 function somarDias(iso: string, dias: number) {
   const d = new Date(iso + "T12:00:00Z");
@@ -87,7 +88,7 @@ export default async function PaginaRota({
     const inicio = somarDias(dataBase, -14);
     const { data: dias } = await supabase
       .from("calendario")
-      .select("data, preco")
+      .select("data, preco, atualizado_em")
       .eq("origem", origem)
       .eq("destino", destino)
       .gte("data", inicio < hoje ? hoje : inicio)
@@ -116,6 +117,11 @@ export default async function PaginaRota({
       ? ida.preco_atual + volta.preco_atual
       : null;
   const buscando = (pendentes ?? 0) > 0;
+  // Quando foi a última vez que esse preço foi conferido (busca detalhada ou atualização geral)
+  const atualizadoEm =
+    rota.ultima_busca_em ??
+    calIda.find((d) => d.data === rota.data_ida)?.atualizado_em ??
+    null;
 
   return (
     <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)] xl:grid-cols-[minmax(0,1fr)_minmax(0,480px)]">
@@ -134,7 +140,7 @@ export default async function PaginaRota({
                 {rota.data_volta ? "⇄ Ida e volta" : "→ Só ida"}
               </span>
               <span className="text-xs text-slate-400">
-                atualizado {haQuantoTempo(rota.ultima_busca_em)}
+                atualizado {haQuantoTempo(atualizadoEm)}
               </span>
             </>
           }
@@ -165,8 +171,8 @@ export default async function PaginaRota({
           <div className="flex items-center gap-3 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sky-800">
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-sky-600 border-t-transparent" />
             <span>
-              Buscando os preços agora em todas as companhias. Leva de 1 a 3
-              minutos; a página se atualiza sozinha.
+              Buscando os horários e as companhias deste dia. Leva cerca de 30
+              segundos; a página se atualiza sozinha.
             </span>
           </div>
         )}
@@ -216,22 +222,33 @@ export default async function PaginaRota({
           </p>
         )}
 
-        <section className="grid gap-3">
-          <div className="flex items-baseline justify-between gap-2">
-            <h2 className="text-lg font-bold">Voos disponíveis</h2>
-            <span className="text-xs text-slate-500">
-              toque no voo para reservar
-            </span>
-          </div>
-          <ListaVoos
-            voos={rota.voos_atuais ?? []}
+        {rota.voos_atuais?.length || buscando ? (
+          <section className="grid gap-3">
+            <div className="flex items-baseline justify-between gap-2">
+              <h2 className="text-lg font-bold">Voos disponíveis</h2>
+              <span className="text-xs text-slate-500">
+                toque no voo para reservar
+              </span>
+            </div>
+            <ListaVoos
+              voos={rota.voos_atuais ?? []}
+              origem={rota.origem}
+              destino={rota.destino}
+              ida={rota.data_ida}
+              volta={rota.data_volta}
+              buscando={buscando}
+            />
+          </section>
+        ) : (
+          // Só o preço salvo da atualização geral: nada é buscado de novo ao abrir a página
+          <SemVoos
+            rotaId={rota.id}
             origem={rota.origem}
             destino={rota.destino}
             ida={rota.data_ida}
             volta={rota.data_volta}
-            buscando={buscando}
           />
-        </section>
+        )}
       </div>
 
       {/* Coluna lateral (embaixo no celular): alerta, calendário e histórico */}
