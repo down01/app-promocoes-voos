@@ -87,7 +87,9 @@ def rotas_das_promocoes(banco, quantidade=12):
     faltam = []
     for p in promocoes:
         r = banco.rpc("registrar_rota", p_origem=p["origem"], p_destino=p["destino"], p_ida=p["data"])
-        if r.get("preco_atual") != p["preco"] or (r.get("ultima_busca_em") or "") < recente:
+        # Saindo do exterior o calendário arredonda o câmbio diferente (R$ 608 x R$ 612): até 3% é o mesmo preço
+        bate = r.get("preco_atual") is not None and abs(r["preco_atual"] - p["preco"]) <= p["preco"] * 0.03
+        if not bate or (r.get("ultima_busca_em") or "") < recente:
             faltam.append(r)
     return faltam
 
