@@ -29,21 +29,28 @@ export default async function Inicio() {
 
   return (
     <div className="grid gap-10">
-      <section className="heroi -mx-4 -mt-6 grid gap-5 px-4 pb-10 pt-8 text-white sm:rounded-b-[2.5rem]">
-        <div className="grid gap-2">
-          <span className="w-fit rounded-full bg-white/15 px-3 py-1 text-xs font-semibold backdrop-blur">
-            ✈ LATAM · Gol · Azul · internacionais
-          </span>
-          <h1 className="text-3xl font-black leading-tight tracking-tight sm:text-5xl">
-            Sua próxima viagem
-            <br />
-            <span className="text-amber-300">pelo menor preço.</span>
-          </h1>
-          <p className="max-w-xl text-sm text-sky-50 sm:text-base">
-            Comparamos todas as companhias, a ida e volta com os trechos separados, e avisamos quando o preço cair.
-          </p>
+      <section className="heroi ponta-a-ponta -mt-6 pb-12 pt-8 text-white lg:pb-16 lg:pt-14">
+        <div className="grid items-center gap-6 lg:grid-cols-[1fr_minmax(0,600px)] lg:gap-12">
+          <div className="grid gap-3">
+            <span className="w-fit rounded-full bg-white/15 px-3 py-1 text-xs font-semibold backdrop-blur">
+              ✈ LATAM · Gol · Azul · internacionais
+            </span>
+            <h1 className="text-3xl font-black leading-tight tracking-tight sm:text-5xl xl:text-6xl">
+              Sua próxima viagem
+              <br />
+              <span className="text-amber-300">pelo menor preço.</span>
+            </h1>
+            <p className="max-w-xl text-sm text-sky-50 sm:text-lg">
+              Comparamos todas as companhias, a ida e volta com os trechos separados, e avisamos quando o preço cair.
+            </p>
+            <ul className="hidden gap-x-6 gap-y-2 pt-2 text-sm font-semibold text-sky-50 lg:flex lg:flex-wrap">
+              <li>✓ Preços atualizados 4× por dia</li>
+              <li>✓ 3.500 rotas acompanhadas</li>
+              <li>✓ Aviso quando o preço cair</li>
+            </ul>
+          </div>
+          <FormBusca />
         </div>
-        <FormBusca />
       </section>
 
       <Ofertas nacionais={(nacionais ?? []) as Promocao[]} internacionais={internacionais} />

@@ -2,12 +2,16 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { AEROPORTOS } from "@/lib/aeroportos";
+import { sugerirAeroportos } from "@/lib/aeroportos";
+import CampoAeroporto from "./CampoAeroporto";
 
-// Aceita "VIX", "vix" ou "Vitória (VIX)" vindo da lista de sugestões
+// Aceita "Vitória (VIX)" da lista, "VIX"/"vix", ou uma cidade digitada sem escolher ("vitoria")
 function codigo(texto: string) {
   const entre = texto.match(/\(([A-Za-z]{3})\)\s*$/);
-  return (entre ? entre[1] : texto.trim()).toUpperCase();
+  if (entre) return entre[1].toUpperCase();
+  const limpo = texto.trim();
+  if (/^[A-Za-z]{3}$/.test(limpo)) return limpo.toUpperCase();
+  return sugerirAeroportos(limpo, 1)[0]?.codigo ?? "";
 }
 
 export default function FormBusca({ origemPadrao = "" }: { origemPadrao?: string }) {
@@ -26,7 +30,7 @@ export default function FormBusca({ origemPadrao = "" }: { origemPadrao?: string
     const o = codigo(origem);
     const d = codigo(destino);
     if (!/^[A-Z]{3}$/.test(o) || !/^[A-Z]{3}$/.test(d)) {
-      setErro("Escolha a origem e o destino na lista ou digite o código de 3 letras (ex.: VIX).");
+      setErro("Não achei esse lugar. Comece a digitar a cidade e escolha na lista (ex.: Vitória).");
       return;
     }
     setEnviando(true);
@@ -48,12 +52,6 @@ export default function FormBusca({ origemPadrao = "" }: { origemPadrao?: string
 
   return (
     <form onSubmit={buscar} className="grid gap-4 rounded-3xl bg-white p-5 text-slate-900 shadow-xl shadow-sky-900/20">
-      <datalist id="aeroportos">
-        {Object.entries(AEROPORTOS).map(([sigla, nome]) => (
-          <option key={sigla} value={`${nome} (${sigla})`} />
-        ))}
-      </datalist>
-
       <div className="flex gap-2 text-sm font-semibold" role="radiogroup" aria-label="Tipo de viagem">
         {[
           { valor: false, rotulo: "⇄ Ida e volta" },
@@ -75,11 +73,7 @@ export default function FormBusca({ origemPadrao = "" }: { origemPadrao?: string
       </div>
 
       <div className="relative grid gap-3 sm:grid-cols-2">
-        <label className="grid gap-1 text-sm font-medium text-slate-600">
-          🛫 De onde
-          <input className="campo" list="aeroportos" placeholder="Vitória (VIX)" value={origem}
-            onChange={(e) => setOrigem(e.target.value)} required />
-        </label>
+        <CampoAeroporto rotulo="🛫 De onde" placeholder="Cidade, aeroporto ou país" valor={origem} aoMudar={setOrigem} />
         <button
           type="button"
           aria-label="Trocar origem e destino"
@@ -91,11 +85,7 @@ export default function FormBusca({ origemPadrao = "" }: { origemPadrao?: string
         >
           ⇅
         </button>
-        <label className="grid gap-1 text-sm font-medium text-slate-600">
-          🛬 Para onde
-          <input className="campo" list="aeroportos" placeholder="Santiago (SCL)" value={destino}
-            onChange={(e) => setDestino(e.target.value)} required />
-        </label>
+        <CampoAeroporto rotulo="🛬 Para onde" placeholder="Cidade, aeroporto ou país" valor={destino} aoMudar={setDestino} />
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="grid gap-1 text-sm font-medium text-slate-600">

@@ -48,7 +48,7 @@ export default function Ofertas({ nacionais, internacionais }: { nacionais: Prom
         ))}
       </div>
       {lista.length ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {lista.map((p) => (
             // <a> comum: o link cria a viagem no banco, então não deve ser pré-carregado
             <a
