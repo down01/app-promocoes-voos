@@ -9,11 +9,10 @@ class Banco:
         self.url = (url or os.environ["SUPABASE_URL"]).rstrip("/")
         chave = chave or os.environ["SUPABASE_SECRET_KEY"]
         self.sessao = requests.Session()
-        self.sessao.headers.update({
-            "apikey": chave,
-            "Authorization": f"Bearer {chave}",
-            "Content-Type": "application/json",
-        })
+        # Chaves novas (sb_secret_...) vão só no cabeçalho apikey; no Authorization o Supabase recusa
+        self.sessao.headers.update({"apikey": chave, "Content-Type": "application/json"})
+        if not chave.startswith("sb_"):
+            self.sessao.headers["Authorization"] = f"Bearer {chave}"  # chave antiga (service_role JWT)
 
     def _req(self, metodo, caminho, **kw):
         r = self.sessao.request(metodo, f"{self.url}{caminho}", timeout=30, **kw)
