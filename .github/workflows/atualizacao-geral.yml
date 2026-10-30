@@ -1,8 +1,8 @@
 name: Atualização geral (0h, 6h, 12h e 18h)
 
 on:
-  schedule:
-    - cron: "0 3,9,15,21 * * *"   # UTC → 00h, 06h, 12h e 18h em Brasília
+  # Disparada pelo despertador do Supabase (pg_cron → site /api/cron) às 0h, 6h, 12h e 18h de Brasília.
+  # O agendamento do GitHub ("schedule") pulava rodadas no plano grátis, por isso não é usado.
   workflow_dispatch:
     inputs:
       escopo:
