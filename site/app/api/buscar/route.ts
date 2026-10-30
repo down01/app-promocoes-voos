@@ -7,7 +7,10 @@ const DATA = /^\d{4}-\d{2}-\d{2}$/;
 async function acordarRobo() {
   const token = process.env.GITHUB_TOKEN;
   const repo = process.env.GITHUB_REPO ?? "down01/app-promocoes-voos";
-  if (!token) return false;
+  if (!token) {
+    console.error("acordarRobo: GITHUB_TOKEN não configurado");
+    return false;
+  }
   const r = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/robo-6h.yml/dispatches`, {
     method: "POST",
     headers: {
@@ -17,6 +20,7 @@ async function acordarRobo() {
     },
     body: JSON.stringify({ ref: "main", inputs: { modo: "pedidos" } }),
   });
+  if (!r.ok) console.error(`acordarRobo: GitHub respondeu ${r.status}: ${(await r.text()).slice(0, 300)}`);
   return r.ok;
 }
 
@@ -43,6 +47,10 @@ export async function POST(request: Request) {
   }
 
   const resultado = data as { rota_id: number; pedidos_novos: number };
-  if (resultado.pedidos_novos > 0) await acordarRobo();
-  return NextResponse.json({ rota_id: resultado.rota_id, buscando: resultado.pedidos_novos > 0 });
+  const roboAcordado = resultado.pedidos_novos > 0 ? await acordarRobo() : false;
+  return NextResponse.json({
+    rota_id: resultado.rota_id,
+    buscando: resultado.pedidos_novos > 0,
+    robo_acordado: roboAcordado,
+  });
 }
