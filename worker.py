@@ -156,14 +156,16 @@ def main():
         return
     banco = Banco()
 
+    vincular_telegram(banco)
+    pedidos = banco.selecionar("pedidos_busca", select="id,rota:rotas(*)", status="eq.pendente")
+    for p in pedidos:
+        banco.atualizar("pedidos_busca", {"status": "buscando"}, id=f"eq.{p['id']}")
     if a.pedidos:
-        pedidos = banco.selecionar("pedidos_busca", select="id,rota:rotas(*)", status="eq.pendente")
         rotas = [p["rota"] for p in pedidos]
-        for p in pedidos:
-            banco.atualizar("pedidos_busca", {"status": "buscando"}, id=f"eq.{p['id']}")
     else:
-        vincular_telegram(banco)
-        rotas = rotas_para_atualizar(banco)
+        # A rodada completa também atende o que o site pediu, primeiro da fila
+        pedidas = {p["rota"]["id"] for p in pedidos}
+        rotas = [p["rota"] for p in pedidos] + [r for r in rotas_para_atualizar(banco) if r["id"] not in pedidas]
 
     print(f"{len(rotas)} rotas para buscar")
     with sync_playwright() as p:
@@ -181,10 +183,9 @@ def main():
             pagina.wait_for_timeout(random.randint(1500, 3500))
         navegador.close()
 
-    if a.pedidos:
-        for p in pedidos:
-            banco.atualizar("pedidos_busca", {"status": "pronto", "concluido_em": agora().isoformat()},
-                            id=f"eq.{p['id']}")
+    for p in pedidos:
+        banco.atualizar("pedidos_busca", {"status": "pronto", "concluido_em": agora().isoformat()},
+                        id=f"eq.{p['id']}")
 
     print(f"{conferir_alertas(banco, a.simular)} avisos enviados")
 
