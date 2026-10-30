@@ -22,6 +22,8 @@ jobs:
     timeout-minutes: 120
     strategy:
       fail-fast: false
+      # O GitHub grátis roda 20 máquinas ao mesmo tempo: deixa 4 livres para as buscas do site
+      max-parallel: 16
       matrix:
         parte: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
     steps:
@@ -44,6 +46,7 @@ jobs:
     timeout-minutes: 120
     strategy:
       fail-fast: false
+      max-parallel: 16
       matrix:
         parte: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
     steps:
