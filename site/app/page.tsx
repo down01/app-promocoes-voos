@@ -16,11 +16,11 @@ export default async function Inicio() {
   const [{ data: rotas }, { data: nacionais }, { data: paraFora }, { data: paraCasa }] = await Promise.all([
     supabase.from("rotas").select("*").not("preco_atual", "is", null).gte("data_ida", hoje)
       .order("ultima_busca_em", { ascending: false }).limit(6),
-    supabase.from("promocoes").select("origem,destino,data,preco")
+    supabase.from("promocoes").select("origem,destino,data,preco,atualizado_em")
       .filter("origem", "in", brasil).filter("destino", "in", brasil).order("preco").limit(12),
-    supabase.from("promocoes").select("origem,destino,data,preco")
+    supabase.from("promocoes").select("origem,destino,data,preco,atualizado_em")
       .filter("origem", "in", brasil).not("destino", "in", brasil).order("preco").limit(9),
-    supabase.from("promocoes").select("origem,destino,data,preco")
+    supabase.from("promocoes").select("origem,destino,data,preco,atualizado_em")
       .not("origem", "in", brasil).filter("destino", "in", brasil).order("preco").limit(3),
   ]);
   const internacionais = [...(paraFora ?? []), ...(paraCasa ?? [])]

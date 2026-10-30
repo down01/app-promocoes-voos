@@ -4,7 +4,16 @@ import { useState } from "react";
 import { data, reais } from "@/lib/formato";
 import Bilhete from "./Bilhete";
 
-export type Promocao = { origem: string; destino: string; data: string; preco: number };
+export type Promocao = { origem: string; destino: string; data: string; preco: number; atualizado_em: string };
+
+// Promoções baratas esgotam rápido: mostra quando o preço foi visto (horário de Brasília)
+function vistoAs(iso: string) {
+  const d = new Date(iso);
+  const hora = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" });
+  const dia = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "America/Sao_Paulo" });
+  const hoje = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "America/Sao_Paulo" });
+  return dia === hoje ? `visto hoje às ${hora}` : `visto em ${dia} às ${hora}`;
+}
 
 const FILTROS = [
   { id: "todos", rotulo: "✨ Todas" },
@@ -29,7 +38,10 @@ export default function Ofertas({ nacionais, internacionais }: { nacionais: Prom
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h2 className="text-2xl font-black tracking-tight">Promoções de agora 🔥</h2>
-          <p className="text-sm text-slate-500">O dia mais barato de cada rota nos próximos meses, por pessoa, só ida.</p>
+          <p className="text-sm text-slate-500">
+            O dia mais barato de cada rota nos próximos meses, por pessoa, só ida. Promoções baratas esgotam
+            rápido, então o preço pode ter mudado desde a hora em que foi visto.
+          </p>
         </div>
       </div>
       <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
@@ -76,6 +88,9 @@ export default function Ofertas({ nacionais, internacionais }: { nacionais: Prom
                     <div className="text-right">
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">a partir de</p>
                       <p className="text-2xl font-black text-sky-700">{reais(p.preco)}</p>
+                      <p className="text-[11px] text-slate-400" suppressHydrationWarning>
+                        {vistoAs(p.atualizado_em)}
+                      </p>
                     </div>
                   </div>
                 }

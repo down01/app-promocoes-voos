@@ -83,7 +83,7 @@ def rotas_das_promocoes(banco, quantidade=12):
         + banco.selecionar("promocoes", select=campos, origem=f"not.in.{br}", destino=f"in.{br}",
                            order="preco", limit=quantidade // 4)
     )
-    recente = (agora() - timedelta(hours=8)).isoformat()
+    recente = (agora() - timedelta(hours=3)).isoformat()  # promoção esgota rápido: confere a cada rodada
     faltam = []
     for p in promocoes:
         r = banco.rpc("registrar_rota", p_origem=p["origem"], p_destino=p["destino"], p_ida=p["data"])
@@ -293,11 +293,13 @@ def main():
         # Depois confere as promoções. Quando uma estava com preço fantasma, o calendário é corrigido
         # e outra viagem sobe para o topo; repete até as do topo baterem com a busca
         for rodada in range(1, 5):
+            banco.rpc("atualizar_promocoes")  # a lista de promoções é recalculada com os preços corrigidos
             faltam = rotas_das_promocoes(banco)
             if not faltam:
                 break
             print(f"Conferindo promoções ({rodada}ª vez): {len(faltam)} viagens", flush=True)
             asyncio.run(buscar_rotas(banco, faltam))
+    banco.rpc("atualizar_promocoes")
     print(f"Buscas terminadas em {(time.time() - inicio) / 60:.1f} min", flush=True)
 
     print(f"{conferir_alertas(banco, a.simular)} avisos enviados")
