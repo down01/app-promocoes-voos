@@ -17,6 +17,44 @@ body {
   color: var(--foreground);
 }
 
+/* Topo da página inicial: céu em degradê com brilho */
+.heroi {
+  background:
+    radial-gradient(60rem 20rem at 85% -10%, rgb(255 255 255 / 0.25), transparent 60%),
+    linear-gradient(135deg, #0284c7 0%, #2563eb 55%, #4f46e5 100%);
+}
+
+/* Avião do cartão de embarque "decola" um pouco ao passar o mouse */
+.bilhete .aviao {
+  transition: transform 0.4s ease;
+}
+a:hover .bilhete .aviao {
+  transform: translate(-50%, -50%) translateX(10px) rotate(-8deg);
+}
+
+/* Painel do voo subindo de baixo, como em aplicativo */
+@keyframes subir {
+  from {
+    transform: translateY(40px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+.animar-subir {
+  animation: subir 0.25s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animar-subir,
+  .bilhete .aviao {
+    animation: none;
+    transition: none;
+  }
+}
+
 .cartao {
   @apply rounded-2xl border border-slate-200 bg-white p-5 shadow-sm;
 }

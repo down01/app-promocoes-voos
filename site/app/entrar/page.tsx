@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { clienteServidor } from "@/lib/supabase/server";
 import FormEntrar from "./FormEntrar";
 
 // Lê ?next=, ?erro= e ?modo= da URL a cada visita
@@ -9,6 +11,13 @@ export default async function Entrar({
   searchParams: Promise<{ next?: string; erro?: string; modo?: string }>;
 }) {
   const { next, erro, modo } = await searchParams;
+  // Já logado (ex.: tocou em "Conta" na barra de baixo): vai direto para os alertas
+  const supabase = await clienteServidor();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user) redirect(next?.startsWith("/") ? next : "/alertas");
+
   return (
     <div className="mx-auto grid w-full max-w-md gap-4">
       {erro && (

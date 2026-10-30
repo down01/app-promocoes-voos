@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 
 const CHAVE = "voo-barato:pulou-cadastro";
 const nada = () => () => {};
@@ -32,7 +33,8 @@ export default function BoasVindas() {
 
   const voltar = encodeURIComponent(caminho);
 
-  return (
+  // Portal no <body>: dentro do cabeçalho (que tem backdrop-blur) o "fixed" ficaria preso a ele
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 p-4 sm:items-center"
       role="dialog" aria-modal="true" aria-labelledby="boas-vindas-titulo">
       <div className="grid w-full max-w-sm gap-4 rounded-2xl bg-white p-6 shadow-xl">
@@ -53,6 +55,7 @@ export default function BoasVindas() {
           Pular por enquanto
         </button>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -3,7 +3,9 @@ import { connection } from "next/server";
 import { clienteServidor } from "@/lib/supabase/server";
 import { data, haQuantoTempo, reais, trajeto } from "@/lib/formato";
 import type { Rota } from "@/lib/tipos";
+import Bilhete from "../../Bilhete";
 import AtualizarSozinho from "./AtualizarSozinho";
+import ListaVoos from "./ListaVoos";
 import CalendarioPrecos from "./CalendarioPrecos";
 import CriarAlerta from "./CriarAlerta";
 import Historico from "./Historico";
@@ -93,13 +95,37 @@ export default async function PaginaRota({ params }: { params: Promise<{ id: str
     <div className="grid gap-6">
       <AtualizarSozinho ativo={buscando} />
 
-      <section className="grid gap-1">
-        <h1 className="text-2xl font-bold sm:text-3xl">{trajeto(rota.origem, rota.destino)}</h1>
-        <p className="text-slate-600">
-          {rota.data_volta ? `Ida ${data(rota.data_ida)} · volta ${data(rota.data_volta)}` : `Só ida · ${data(rota.data_ida)}`}
-        </p>
-        <p className="text-xs text-slate-400">Preço atualizado {haQuantoTempo(rota.ultima_busca_em)}</p>
-      </section>
+      <h1 className="sr-only">{trajeto(rota.origem, rota.destino)}</h1>
+      <Bilhete
+        grande
+        origem={rota.origem}
+        destino={rota.destino}
+        etiqueta={
+          <>
+            <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
+              {rota.data_volta ? "⇄ Ida e volta" : "→ Só ida"}
+            </span>
+            <span className="text-xs text-slate-400">atualizado {haQuantoTempo(rota.ultima_busca_em)}</span>
+          </>
+        }
+        rodape={
+          <div className="flex items-end justify-between gap-3">
+            <div className="grid gap-0.5 text-sm">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                {rota.data_volta ? "Ida · volta" : "Data"}
+              </span>
+              <span className="font-semibold">
+                {data(rota.data_ida)}
+                {rota.data_volta && ` · ${data(rota.data_volta)}`}
+              </span>
+            </div>
+            <div className="text-right">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">a partir de</span>
+              <p className="text-3xl font-black text-sky-700">{reais(rota.preco_atual ?? estimativa)}</p>
+            </div>
+          </div>
+        }
+      />
 
       {buscando && (
         <div className="flex items-center gap-3 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sky-800">
@@ -110,36 +136,19 @@ export default async function PaginaRota({ params }: { params: Promise<{ id: str
         </div>
       )}
 
-      <section className="grid gap-3 sm:grid-cols-3">
-        <div className="cartao">
-          <p className="text-sm text-slate-500">{rota.data_volta ? "Ida e volta juntas" : "Menor preço"}</p>
-          <p className="text-3xl font-bold text-sky-700">{reais(rota.preco_atual ?? estimativa)}</p>
-          {rota.voos_atuais?.[0] ? (
-            <p className="text-xs text-slate-500">{rota.voos_atuais[0].companhia}</p>
-          ) : (
-            estimativa && <p className="text-xs text-slate-500">pelo calendário de preços</p>
-          )}
-        </div>
-        {rota.data_volta && (
-          <>
-            <div className="cartao">
-              <p className="text-sm text-slate-500">Só a ida ({data(rota.data_ida)})</p>
-              <p className="text-2xl font-bold">{reais(ida?.preco_atual ?? naIda)}</p>
-              {ida?.voos_atuais?.[0] && <p className="text-xs text-slate-500">{ida.voos_atuais[0].companhia}</p>}
-            </div>
-            <div className="cartao">
-              <p className="text-sm text-slate-500">Só a volta ({data(rota.data_volta)})</p>
-              <p className="text-2xl font-bold">{reais(volta?.preco_atual ?? naVolta)}</p>
-              {volta?.voos_atuais?.[0] && <p className="text-xs text-slate-500">{volta.voos_atuais[0].companhia}</p>}
-            </div>
-          </>
-        )}
-      </section>
-
-      <CalendarioPrecos titulo={`Preço da ida perto de ${data(rota.data_ida)}`} dias={calIda} escolhida={rota.data_ida} />
       {rota.data_volta && (
-        <CalendarioPrecos titulo={`Preço da volta perto de ${data(rota.data_volta)}`} dias={calVolta}
-          escolhida={rota.data_volta} />
+        <section className="grid grid-cols-2 gap-3">
+          <div className="cartao">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Só a ida · {data(rota.data_ida)}</p>
+            <p className="text-2xl font-black">{reais(ida?.preco_atual ?? naIda)}</p>
+            {ida?.voos_atuais?.[0] && <p className="text-xs text-slate-500">{ida.voos_atuais[0].companhia}</p>}
+          </div>
+          <div className="cartao">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Só a volta · {data(rota.data_volta)}</p>
+            <p className="text-2xl font-black">{reais(volta?.preco_atual ?? naVolta)}</p>
+            {volta?.voos_atuais?.[0] && <p className="text-xs text-slate-500">{volta.voos_atuais[0].companhia}</p>}
+          </div>
+        </section>
       )}
 
       {separado && rota.preco_atual && (
@@ -154,39 +163,30 @@ export default async function PaginaRota({ params }: { params: Promise<{ id: str
         </p>
       )}
 
+      <section className="grid gap-3">
+        <div className="flex items-baseline justify-between gap-2">
+          <h2 className="text-lg font-bold">Voos disponíveis</h2>
+          <span className="text-xs text-slate-500">toque no voo para reservar</span>
+        </div>
+        <ListaVoos
+          voos={rota.voos_atuais ?? []}
+          origem={rota.origem}
+          destino={rota.destino}
+          ida={rota.data_ida}
+          volta={rota.data_volta}
+          buscando={buscando}
+        />
+      </section>
+
       <CriarAlerta rotaId={rota.id} idaEVolta={!!rota.data_volta} logado={!!user} jaTem={!!alertaExistente} />
 
-      {historico && historico.length > 1 && <Historico pontos={historico} />}
+      <CalendarioPrecos titulo={`Preço da ida perto de ${data(rota.data_ida)}`} dias={calIda} escolhida={rota.data_ida} />
+      {rota.data_volta && (
+        <CalendarioPrecos titulo={`Preço da volta perto de ${data(rota.data_volta)}`} dias={calVolta}
+          escolhida={rota.data_volta} />
+      )}
 
-      <section className="cartao grid gap-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-semibold">Voos encontrados</h2>
-          {rota.link && (
-            <a href={rota.link} target="_blank" rel="noopener noreferrer" className="botao-secundario text-sm">
-              Ver e comprar no Google Voos ↗
-            </a>
-          )}
-        </div>
-        {rota.voos_atuais?.length ? (
-          <ul className="divide-y divide-slate-100">
-            {rota.voos_atuais.map((v, i) => (
-              <li key={i} className="flex flex-wrap items-center justify-between gap-2 py-3">
-                <div>
-                  <p className="font-medium">
-                    {v.saida} → {v.chegada}
-                  </p>
-                  <p className="text-sm text-slate-500">
-                    {v.companhia} · {v.duracao} · {v.paradas}
-                  </p>
-                </div>
-                <p className="text-lg font-bold">{reais(v.preco)}</p>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-sm text-slate-500">{buscando ? "Aguardando o resultado da busca…" : "Nenhum voo encontrado ainda."}</p>
-        )}
-      </section>
+      {historico && historico.length > 1 && <Historico pontos={historico} />}
     </div>
   );
 }
