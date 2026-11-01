@@ -42,3 +42,24 @@ def test_buscar_escalas_junta_tudo():
     r = asyncio.run(buscar_escalas([None, None], "GRU", "HNL", "2026-11-19", ["PTY"], falso))
     assert [c["preco"] for c in r] == [2500]
     assert melhores(r * 2) == r  # sem repetidos
+
+
+def test_gravar_so_as_mais_baratas_que_o_bilhete_unico():
+    import worker
+
+    class BancoFalso:
+        def __init__(self):
+            self.gravado = None
+
+        def atualizar(self, tabela, dados, **filtros):
+            self.gravado = (tabela, dados, filtros)
+
+    b = BancoFalso()
+    normais = [voo("23:45", "14:40+1", "21h 55 min", 5428), voo("21:30", "14:27+1", "23h 57 min", 5500)]
+    combos = [dict(voo("11:25", "20:35+1", "40h 10 min", 2612), separado=True),
+              dict(voo("01:00", "21:40+1", "51h 40 min", 6000), separado=True)]
+    boas = worker.gravar_escalas(b, {"id": 7}, normais, combos)
+    assert [c["preco"] for c in boas] == [2612]
+    tabela, dados, filtros = b.gravado
+    assert filtros == {"id": "eq.7"}
+    assert [v["preco"] for v in dados["voos_atuais"]] == [2612, 5428, 5500]

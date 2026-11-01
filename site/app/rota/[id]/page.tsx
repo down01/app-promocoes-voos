@@ -195,8 +195,9 @@ export default async function PaginaRota({
           <div className="flex items-center gap-3 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sky-800">
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-sky-600 border-t-transparent" />
             <span>
-              Buscando os horários e as companhias deste dia. Leva cerca de 30
-              segundos; a página se atualiza sozinha.
+              {rota.voos_atuais.length
+                ? "Procurando também combinações mais baratas com bilhetes separados (até 2 minutos). A página se atualiza sozinha."
+                : "Buscando os horários e as companhias deste dia. Leva cerca de 30 segundos; a página se atualiza sozinha."}
             </span>
           </div>
         )}

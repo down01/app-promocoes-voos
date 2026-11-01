@@ -5,7 +5,10 @@ export type Voo = {
   duracao: string;
   paradas: string;
   preco: number;
-  aeroportos?: string; // "GIG–GRU": de qual aeroporto sai e chega (buscas por cidade)
+  aeroportos?: string; // "GIG–GRU": de qual aeroporto sai e chega; "GRU–YYZ–HNL" com bilhetes separados
+  // Bilhetes separados: dois voos comprados à parte, um em cada trecho
+  separado?: boolean;
+  trechos?: (Voo & { origem: string; destino: string; data: string })[];
 };
 
 export type Rota = {

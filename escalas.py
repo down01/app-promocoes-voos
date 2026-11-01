@@ -36,7 +36,7 @@ HUBS = [
 # As maiores conexões (muitas companhias, inclusive low cost) são testadas antes das outras
 PRINCIPAIS = {
     "GRU", "SCL", "EZE", "LIM", "BOG", "PTY", "SDQ", "CUN", "MEX", "MIA", "FLL", "ATL", "DFW", "IAH",
-    "JFK", "LAX", "SFO", "SEA", "YYZ", "YVR", "LIS", "MAD", "CDG", "LHR", "AMS", "FRA", "IST", "ADD",
+    "JFK", "LAX", "SFO", "SEA", "YYZ", "YVR", "YYC", "LIS", "MAD", "CDG", "LHR", "AMS", "FRA", "IST", "ADD",
     "DXB", "DOH", "SIN", "BKK", "HKG", "ICN", "NRT", "SYD",
 }
 
@@ -52,7 +52,14 @@ def distancia(a, b):
     return 6371 * 2 * math.asin(math.sqrt(h))
 
 
-def escolher_hubs(origem, destino, quantidade=6, desvio=1.35):
+DISTANCIA_MINIMA = 3000  # km: em viagens curtas a conexão separada quase nunca compensa
+
+
+def vale_tentar(origem, destino):
+    return origem in AEROPORTOS and destino in AEROPORTOS and distancia(origem, destino) >= DISTANCIA_MINIMA
+
+
+def escolher_hubs(origem, destino, quantidade=10, desvio=1.35):
     """Conexões no caminho: as que menos aumentam a distância total (até 35% a mais)."""
     if origem not in AEROPORTOS or destino not in AEROPORTOS:
         return []
@@ -68,7 +75,38 @@ def escolher_hubs(origem, destino, quantidade=6, desvio=1.35):
         total = ida + resto
         if total <= direto * desvio:
             candidatos.append((h not in PRINCIPAIS, total / direto, h))
-    return [h for *_, h in sorted(candidatos)[:quantidade]]
+    # Primeiro a melhor de cada região, depois a segunda: assim caminhos diferentes (pelo Canadá,
+    # pelo Caribe, pelos EUA...) são testados antes de duas conexões quase iguais
+    ordem = [h for *_, h in sorted(candidatos)]
+    escolhidos, vistas = [], set()
+    for rodada in range(2):
+        for h in ordem:
+            r = regiao(h)
+            if h in escolhidos or (rodada == 0 and r in vistas):
+                continue
+            if rodada == 0 or sum(regiao(x) == r for x in escolhidos) < 2:
+                escolhidos.append(h)
+                vistas.add(r)
+    return escolhidos[:quantidade]
+
+
+REGIOES = {
+    "BR": "brasil", "AR": "sul", "CL": "sul", "UY": "sul", "PY": "sul", "PE": "andes", "CO": "andes",
+    "EC": "andes", "BO": "andes", "PA": "central", "CR": "central", "SV": "central", "GT": "central",
+    "DO": "caribe", "CU": "caribe", "MX": "mexico", "US": "eua", "CA": "canada", "PT": "iberia",
+    "ES": "iberia", "MA": "iberia", "FR": "europa", "GB": "europa", "NL": "europa", "DE": "europa",
+    "IT": "europa", "TR": "oriente", "AE": "oriente", "QA": "oriente", "ET": "africa", "ZA": "africa",
+    "IN": "asia-sul", "SG": "asia", "TH": "asia", "MY": "asia", "HK": "asia-leste", "KR": "asia-leste",
+    "JP": "asia-leste", "TW": "asia-leste", "PH": "asia", "AU": "oceania", "NZ": "oceania",
+}
+
+
+def regiao(codigo):
+    pais = AEROPORTOS[codigo]["country"]
+    # EUA e Canadá são grandes: leste e oeste são caminhos diferentes
+    if pais in ("US", "CA"):
+        return pais + ("-oeste" if AEROPORTOS[codigo]["lon"] < -100 else "-leste")
+    return REGIOES.get(pais, pais)
 
 
 RE_HORA = re.compile(r"(\d{1,2}):(\d{2})(?:\+(\d))?")
@@ -141,7 +179,8 @@ def combinar(origem, hub, destino, primeiros, segundos_d0, segundos_d1, data_ida
 
 
 def juntar_companhias(a, b):
-    nomes = [n.strip() for n in f"{a}, {b}".split(",") if n.strip()]
+    from robo_voos import separar_companhias  # "WestJetDelta" → "WestJet, Delta"
+    nomes = [n.strip() for n in separar_companhias(f"{a}, {b}").split(",") if n.strip()]
     return ", ".join(dict.fromkeys(nomes))
 
 
@@ -203,7 +242,7 @@ def main():
     ap.add_argument("origem")
     ap.add_argument("destino")
     ap.add_argument("ida")
-    ap.add_argument("--hubs", type=int, default=6)
+    ap.add_argument("--hubs", type=int, default=10)
     ap.add_argument("--abas", type=int, default=4)
     ap.add_argument("--lista", help="conexões a testar, separadas por vírgula (ex.: SDQ,YVR)")
     a = ap.parse_args()

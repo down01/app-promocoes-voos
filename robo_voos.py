@@ -40,7 +40,8 @@ COMPANHIAS_CONHECIDAS = [
     "Aerolineas Argentinas", "American Airlines", "TAP Air Portugal", "Sky Airline", "Air France", "Air Europa",
     "Qatar Airways", "Turkish Airlines", "British Airways", "Ethiopian Airlines", "Boliviana de Aviación",
     "Emirates", "Lufthansa", "Iberia", "KLM", "United", "Delta", "Copa", "Avianca", "Paranair", "Arajet",
-    "JetSMART", "LATAM", "Gol", "Azul", "Flybondi", "Swiss", "ITA",
+    "JetSMART", "LATAM", "Gol", "Azul", "Flybondi", "Swiss", "ITA", "WestJet", "Air Canada", "Aeromexico",
+    "Alaska", "Hawaiian", "Spirit", "JetBlue", "Frontier", "Volaris", "Viva Aerobus", "Wingo", "Sky",
 ]
 
 

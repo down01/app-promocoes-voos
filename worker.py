@@ -21,6 +21,7 @@ from playwright.async_api import async_playwright
 from aeroportos import BRASIL
 from avisos import enviar_email, enviar_push, enviar_telegram, montar_mensagem
 from db import Banco
+from escalas import buscar_escalas, vale_tentar
 from promocao import deve_avisar, eh_promocao
 from robo_voos import buscar_na_pagina_async
 
@@ -108,6 +109,21 @@ def gravar_rota(banco, rota, voos, url):
     return m["preco"]
 
 
+ESCALAS_ABAS = int(os.environ.get("ESCALAS_ABAS", "3"))  # abas extras para os bilhetes separados
+ESCALAS_MAX = 5  # combinações guardadas por viagem
+
+
+def gravar_escalas(banco, rota, voos, combos):
+    """Junta à lista as combinações com bilhetes separados mais baratas que o melhor bilhete único.
+    O preço da viagem (alertas, calendário) continua sendo o do bilhete único."""
+    teto = voos[0]["preco"] if voos else None
+    boas = [c for c in combos if teto is None or c["preco"] < teto][:ESCALAS_MAX]
+    if boas:
+        lista = sorted(voos[:15] + boas, key=lambda v: v["preco"])
+        banco.atualizar("rotas", {"voos_atuais": lista}, id=f"eq.{rota['id']}")
+    return boas
+
+
 def pegar_pedidos(banco):
     pedidos = banco.selecionar("pedidos_busca", select="id,rota:rotas(*)", status="eq.pendente")
     for p in pedidos:
@@ -172,6 +188,23 @@ async def buscar_rotas(banco, rotas, abas=ABAS, espera=0, max_minutos=MAX_MINUTO
                     preco = await asyncio.to_thread(gravar_rota, banco, rota, voos, url)
             except Exception as e:  # uma rota com problema não pode parar as outras
                 print(f"  erro em {rota['id']}: {e}", flush=True)
+                voos = []
+            # Pedido do site, só ida e viagem longa: procura também bilhetes separados (mais baratos às vezes).
+            # Os voos normais já estão gravados; a página continua "buscando" até isto terminar.
+            if rota["id"] in pedidos_da_rota and not rota["data_volta"] and vale_tentar(rota["origem"], rota["destino"]):
+                extras = []
+                try:
+                    extras = [await contexto.new_page() for _ in range(ESCALAS_ABAS)]
+                    combos = await buscar_escalas([pagina, *extras], rota["origem"], rota["destino"], rota["data_ida"])
+                    boas = await asyncio.to_thread(gravar_escalas, banco, rota, voos, combos)
+                    if boas:
+                        print(f"  [{n}] bilhetes separados: {len(boas)} mais baratos, a partir de R$ {boas[0]['preco']}",
+                              flush=True)
+                except Exception as e:
+                    print(f"  erro nos bilhetes separados de {rota['id']}: {e}", flush=True)
+                finally:
+                    for p in extras:
+                        await p.close()
             ids = pedidos_da_rota.pop(rota["id"], [])
             if ids:
                 try:

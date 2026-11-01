@@ -5,11 +5,13 @@ import { reais } from "@/lib/formato";
 import { companhias, estiloCompanhia, linkReserva } from "@/lib/reserva";
 import type { Voo } from "@/lib/tipos";
 
-// "GIG–GRU" → ["GIG", "GRU"]; sem a informação, usa os códigos da viagem
+// "GIG–GRU" → ["GIG", "GRU"], "GRU–YYZ–HNL" → ["GRU", "HNL"]; sem a informação, usa os da viagem
 function pontas(v: Voo, origem: string, destino: string) {
-  const [o, d] = (v.aeroportos ?? "").split(/[–-]/);
-  return o && d ? [o, d] : [origem, destino];
+  const partes = (v.aeroportos ?? "").split(/[–-]/).filter(Boolean);
+  return partes.length >= 2 ? [partes[0], partes[partes.length - 1]] : [origem, destino];
 }
+
+const caminho = (aeroportos: string) => aeroportos.split(/[–-]/).join(" → ");
 
 function SeloCompanhia({ nome }: { nome: string }) {
   const c = estiloCompanhia(nome);
@@ -55,7 +57,8 @@ export default function ListaVoos({
   const menor = Math.min(...voos.map((v) => v.preco));
   const [abertoDe, abertoPara] = aberto ? pontas(aberto, origem, destino) : [origem, destino];
   const reserva = aberto ? linkReserva(aberto.companhia, abertoDe, abertoPara, ida, volta) : null;
-  const variosAeroportos = new Set(voos.map((v) => v.aeroportos).filter(Boolean)).size > 1;
+  const variosAeroportos =
+    new Set(voos.map((v) => v.aeroportos).filter(Boolean)).size > 1 || voos.some((v) => v.separado);
   const nomeReserva = aberto ? companhias(aberto.companhia) : [];
 
   return (
@@ -77,13 +80,18 @@ export default function ListaVoos({
                       mais barato
                     </span>
                   )}
+                  {v.separado && (
+                    <span className="rounded-md bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
+                      bilhetes separados
+                    </span>
+                  )}
                 </div>
                 <p className="text-lg font-bold tracking-tight">
                   {v.saida} <span className="text-slate-300">→</span> {v.chegada}
                 </p>
                 <p className="text-xs text-slate-500">
                   {variosAeroportos && v.aeroportos && (
-                    <span className="mr-1 font-bold text-slate-700">{v.aeroportos.replace(/[–-]/, " → ")} ·</span>
+                    <span className="mr-1 font-bold text-slate-700">{caminho(v.aeroportos)} ·</span>
                   )}
                   {v.duracao} · {v.paradas}
                 </p>
@@ -131,6 +139,7 @@ export default function ListaVoos({
               </div>
             </div>
             <p className="text-center text-sm text-slate-500">
+              {aberto.separado && aberto.aeroportos && <span className="font-bold">{caminho(aberto.aeroportos)} · </span>}
               {aberto.duracao} · {aberto.paradas}
             </p>
 
@@ -139,12 +148,51 @@ export default function ListaVoos({
               <span className="text-3xl font-black text-sky-700">{reais(aberto.preco)}</span>
             </div>
 
-            <a href={reserva.url} target="_blank" rel="noopener noreferrer" className="botao py-3.5 text-base">
-              Ir para reserva {nomeReserva.length === 1 ? `na ${estiloCompanhia(nomeReserva[0]).nome}` : ""} ↗
-            </a>
-            <p className="text-center text-xs text-slate-400">
-              Você vai para o {reserva.destino} com essa rota e data já preenchidas. O preço final é confirmado lá.
-            </p>
+            {aberto.separado && aberto.trechos ? (
+              <>
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                  <p className="font-bold">⚠️ Dois bilhetes comprados separados</p>
+                  <p className="mt-1">
+                    Na conexão você pega a mala e faz o check-in de novo. Se o primeiro voo atrasar e você
+                    perder o segundo, a outra companhia não é obrigada a te remarcar. Confira também se precisa
+                    de visto no país da conexão.
+                  </p>
+                </div>
+                {aberto.trechos.map((t, i) => {
+                  const r = linkReserva(t.companhia, t.origem, t.destino, t.data, null);
+                  return (
+                    <div key={i} className="grid gap-2 rounded-2xl border border-slate-200 p-3">
+                      <div className="flex items-center justify-between gap-2 text-sm">
+                        <span className="font-bold">
+                          {i + 1}º bilhete · {t.origem} → {t.destino}
+                        </span>
+                        <span className="font-black text-sky-700">{reais(t.preco)}</span>
+                      </div>
+                      <p className="text-xs text-slate-500">
+                        {t.data.split("-").reverse().join("/")} · {t.saida} → {t.chegada} · {t.duracao} · {t.paradas}
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {companhias(t.companhia).map((c) => (
+                          <SeloCompanhia key={c} nome={c} />
+                        ))}
+                      </div>
+                      <a href={r.url} target="_blank" rel="noopener noreferrer" className="botao py-2.5 text-sm">
+                        Comprar o {i + 1}º bilhete ↗
+                      </a>
+                    </div>
+                  );
+                })}
+              </>
+            ) : (
+              <>
+                <a href={reserva.url} target="_blank" rel="noopener noreferrer" className="botao py-3.5 text-base">
+                  Ir para reserva {nomeReserva.length === 1 ? `na ${estiloCompanhia(nomeReserva[0]).nome}` : ""} ↗
+                </a>
+                <p className="text-center text-xs text-slate-400">
+                  Você vai para o {reserva.destino} com essa rota e data já preenchidas. O preço final é confirmado lá.
+                </p>
+              </>
+            )}
             <button className="text-sm text-slate-500 underline" onClick={() => setAberto(null)}>
               Fechar
             </button>
