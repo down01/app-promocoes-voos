@@ -205,9 +205,10 @@ def main():
     ap.add_argument("ida")
     ap.add_argument("--hubs", type=int, default=6)
     ap.add_argument("--abas", type=int, default=4)
+    ap.add_argument("--lista", help="conexões a testar, separadas por vírgula (ex.: SDQ,YVR)")
     a = ap.parse_args()
     origem, destino = a.origem.upper(), a.destino.upper()
-    hubs = escolher_hubs(origem, destino, a.hubs)
+    hubs = a.lista.upper().split(",") if a.lista else escolher_hubs(origem, destino, a.hubs)
     print(f"Conexões testadas: {', '.join(hubs) or 'nenhuma'}", flush=True)
 
     async def rodar():

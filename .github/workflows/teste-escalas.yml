@@ -15,6 +15,9 @@ on:
       hubs:
         description: "Quantas cidades de conexão testar"
         default: "10"
+      lista:
+        description: "Ou: conexões exatas, separadas por vírgula (ex.: SDQ,YVR)"
+        default: ""
 
 jobs:
   buscar:
@@ -28,4 +31,4 @@ jobs:
           cache: pip
       - run: pip install -r requirements.txt
       - name: Montar conexões
-        run: python escalas.py ${{ inputs.origem }} ${{ inputs.destino }} ${{ inputs.ida }} --hubs ${{ inputs.hubs }}
+        run: python escalas.py ${{ inputs.origem }} ${{ inputs.destino }} ${{ inputs.ida }} --hubs ${{ inputs.hubs }} ${{ inputs.lista && format('--lista {0}', inputs.lista) || '' }}
