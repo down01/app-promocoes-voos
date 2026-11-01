@@ -1,0 +1,31 @@
+name: Teste de bilhetes separados
+
+on:
+  workflow_dispatch:
+    inputs:
+      origem:
+        description: "Aeroporto de origem"
+        default: "GRU"
+      destino:
+        description: "Aeroporto de destino"
+        default: "HNL"
+      ida:
+        description: "Data (AAAA-MM-DD)"
+        default: "2026-11-19"
+      hubs:
+        description: "Quantas cidades de conexão testar"
+        default: "10"
+
+jobs:
+  buscar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Montar conexões
+        run: python escalas.py ${{ inputs.origem }} ${{ inputs.destino }} ${{ inputs.ida }} --hubs ${{ inputs.hubs }}
