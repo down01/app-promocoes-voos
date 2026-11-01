@@ -30,7 +30,11 @@ jobs:
       - name: Instalar Playwright
         run: pip install playwright==1.64.1
 
+      - name: Sonda cidades
+        run: python sonda_cidades.py
+
       - name: Buscar ida e volta
+        if: false
         run: python robo_voos.py ${{ inputs.origem }} ${{ inputs.destino }} ${{ inputs.ida }} ${{ inputs.volta }}
 
       - name: Buscar só a ida
@@ -48,5 +52,6 @@ jobs:
           name: resultado
           path: |
             falha_*.png
+            sonda_*.png
             historico_precos.csv
           if-no-files-found: ignore
