@@ -115,7 +115,7 @@ export default async function PaginaComparar({
                   {nomeCidade(r.origem)} → {nomeCidade(r.destino)}
                 </span>
                 <span className="text-[11px] text-slate-400">
-                  {r.ultima_busca_em ? `conferido ${haQuantoTempo(r.ultima_busca_em)}` : "preço do calendário"}
+                  {r.ultima_busca_em ? `conferido ${haQuantoTempo(r.ultima_busca_em)}` : preco != null ? "preço do calendário" : ""}
                 </span>
               </div>
               <div className="text-right">
