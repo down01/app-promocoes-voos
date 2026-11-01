@@ -20,6 +20,7 @@ from playwright.async_api import async_playwright
 
 from aeroportos import BRASIL
 from avisos import enviar_email, enviar_push, enviar_telegram, montar_mensagem
+from calendario import gravar as gravar_calendario, ler_calendario
 from db import Banco
 from escalas import buscar_escalas, vale_tentar
 from promocao import deve_avisar, eh_promocao
@@ -124,6 +125,32 @@ def gravar_escalas(banco, rota, voos, combos):
     return boas
 
 
+JANELA_DIAS = 14  # o site mostra o preço de 2 semanas antes e depois da data escolhida
+
+
+def dias_no_calendario(banco, origem, destino, data_iso):
+    d = date.fromisoformat(data_iso)
+    ini, fim = (d - timedelta(days=JANELA_DIAS)).isoformat(), (d + timedelta(days=JANELA_DIAS)).isoformat()
+    return len(banco.selecionar("calendario", select="data", origem=f"eq.{origem}", destino=f"eq.{destino}",
+                                **{"and": f"(data.gte.{ini},data.lte.{fim})"}))
+
+
+async def completar_calendario(pagina, banco, rota, achou_voos):
+    """Rota fora da atualização geral (ex.: RIO→HNL): lê o calendário de preços do Google para o site
+    mostrar as datas perto da escolhida. Só se ainda não houver quase nada salvo para essas semanas."""
+    origem, destino, data_ida = rota["origem"], rota["destino"], rota["data_ida"]
+    if await asyncio.to_thread(dias_no_calendario, banco, origem, destino, data_ida) >= 10:
+        return 0
+    alvo = date.fromisoformat(data_ida) + timedelta(days=JANELA_DIAS)
+    meses = min(12, max(1, -(-(alvo - date.today()).days // 31)))
+    precos = await ler_calendario(pagina, origem, destino, meses=meses)
+    if achou_voos:
+        precos.pop(data_ida, None)  # o dia escolhido já tem o preço conferido na busca detalhada
+    if precos:
+        await asyncio.to_thread(gravar_calendario, banco, origem, destino, precos)
+    return len(precos)
+
+
 def pegar_pedidos(banco):
     pedidos = banco.selecionar("pedidos_busca", select="id,rota:rotas(*)", status="eq.pendente")
     for p in pedidos:
@@ -189,6 +216,14 @@ async def buscar_rotas(banco, rotas, abas=ABAS, espera=0, max_minutos=MAX_MINUTO
             except Exception as e:  # uma rota com problema não pode parar as outras
                 print(f"  erro em {rota['id']}: {e}", flush=True)
                 voos = []
+            # Pedido do site, só ida (ou trecho de ida e volta): completa o calendário das datas próximas
+            if rota["id"] in pedidos_da_rota and not rota["data_volta"]:
+                try:
+                    dias = await completar_calendario(pagina, banco, rota, bool(voos))
+                    if dias:
+                        print(f"  [{n}] calendário: {dias} dias com preço", flush=True)
+                except Exception as e:
+                    print(f"  erro no calendário de {rota['id']}: {type(e).__name__}: {e}", flush=True)
             # Pedido do site, só ida e viagem longa: procura também bilhetes separados (mais baratos às vezes).
             # Os voos normais já estão gravados; a página continua "buscando" até isto terminar.
             if rota["id"] in pedidos_da_rota and not rota["data_volta"] and vale_tentar(rota["origem"], rota["destino"]):
