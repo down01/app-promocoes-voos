@@ -12,7 +12,7 @@ CONSULTAS = [
 ]
 
 with sync_playwright() as p:
-    nav = p.chromium.launch()
+    nav = p.chromium.launch(channel="chrome")
     pg = nav.new_page(locale="pt-BR", viewport={"width": 1280, "height": 1600})
     for i, c in enumerate(CONSULTAS):
         url = f"https://www.google.com/travel/flights?q={quote(c)}&hl=pt-BR&curr=BRL"
