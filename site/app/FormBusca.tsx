@@ -7,6 +7,19 @@ import CampoAeroporto from "./CampoAeroporto";
 
 const VALIDO = (c: string) => /^[A-Z]{3}$/.test(c) || ehGrupo(c);
 
+// Texto digitado sem escolher na lista: tenta a lista principal e depois o mundo todo
+async function resolver(texto: string) {
+  const local = codigoDoTexto(texto);
+  if (local || texto.trim().length < 3) return local;
+  try {
+    const r = await fetch(`/api/aeroportos?q=${encodeURIComponent(texto.trim())}`);
+    const lista = r.ok ? ((await r.json()) as { codigo: string }[]) : [];
+    return lista[0]?.codigo ?? "";
+  } catch {
+    return "";
+  }
+}
+
 // Última busca guardada no aparelho, para não precisar digitar tudo de novo ao recarregar a página
 const CHAVE = "ultima-busca";
 type Guardada = { origem: string; destino: string; ida: string; volta: string; soIda: boolean };
@@ -64,8 +77,8 @@ export default function FormBusca({ origemPadrao = "" }: { origemPadrao?: string
   async function buscar(e: React.FormEvent) {
     e.preventDefault();
     setErro("");
-    const o = codigoDoTexto(origem);
-    const d = codigoDoTexto(destino);
+    const o = await resolver(origem);
+    const d = await resolver(destino);
     if (!VALIDO(o) || !VALIDO(d)) {
       setErro("Não achei esse lugar. Comece a digitar a cidade e escolha na lista (ex.: Vitória).");
       return;

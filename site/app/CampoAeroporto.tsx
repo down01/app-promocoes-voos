@@ -1,7 +1,9 @@
 "use client";
 
-import { useId, useState } from "react";
-import { sugerirAeroportos } from "@/lib/aeroportos";
+import { useEffect, useId, useState } from "react";
+import { sugerirAeroportos, type Sugestao } from "@/lib/aeroportos";
+
+const LIMPAR = /\s*\(([A-Z]{3}|todos|país inteiro|estado inteiro)\)\s*$/g;
 
 // Campo com lista de sugestões própria (o <datalist> no celular só aparece como chips do teclado)
 export default function CampoAeroporto({
@@ -18,7 +20,29 @@ export default function CampoAeroporto({
   const id = useId();
   const [aberto, setAberto] = useState(false);
   const [ativo, setAtivo] = useState(0);
-  const sugestoes = aberto ? sugerirAeroportos(valor.replace(/\s*\(([A-Z]{3}|todos|país inteiro|estado inteiro)\)\s*$/g, "")) : [];
+  const texto = valor.replace(LIMPAR, "");
+  const locais = aberto ? sugerirAeroportos(texto) : [];
+  // Poucas sugestões na lista principal: procura no mundo todo (Honolulu, Bali...)
+  const [mundo, setMundo] = useState<{ texto: string; lista: Sugestao[] }>({ texto: "", lista: [] });
+  const precisaMundo = aberto && texto.trim().length >= 3 && locais.length < 4;
+  useEffect(() => {
+    if (!precisaMundo) return;
+    const pedido = new AbortController();
+    const t = setTimeout(async () => {
+      try {
+        const r = await fetch(`/api/aeroportos?q=${encodeURIComponent(texto)}`, { signal: pedido.signal });
+        if (r.ok) setMundo({ texto, lista: (await r.json()) as Sugestao[] });
+      } catch {} // digitou de novo antes de chegar, ou sem internet: fica só com a lista principal
+    }, 250);
+    return () => {
+      clearTimeout(t);
+      pedido.abort();
+    };
+  }, [precisaMundo, texto]);
+  const extras = precisaMundo && mundo.texto === texto
+    ? mundo.lista.filter((m) => !locais.some((l) => l.codigo === m.codigo))
+    : [];
+  const sugestoes = [...locais, ...extras].slice(0, 8);
 
   function escolher(i: number) {
     const s = sugestoes[i];
