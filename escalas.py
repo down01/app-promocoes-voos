@@ -18,6 +18,19 @@ import airportsdata
 
 AEROPORTOS = airportsdata.load("IATA")
 
+# Códigos de cidade (o Google busca em todos os aeroportos dela): usa o principal para as distâncias
+CIDADES = {"RIO": "GIG", "SAO": "GRU", "BHZ": "CNF", "BUE": "EZE", "NYC": "JFK", "LON": "LHR",
+           "PAR": "CDG", "TYO": "NRT"}
+
+
+CIDADES_TODOS = {"RIO": ["GIG", "SDU"], "SAO": ["GRU", "CGH", "VCP"], "BHZ": ["CNF", "PLU"],
+                 "BUE": ["EZE", "AEP"], "NYC": ["JFK", "EWR", "LGA"], "LON": ["LHR", "LGW", "STN"],
+                 "PAR": ["CDG", "ORY"], "TYO": ["NRT", "HND"]}
+
+
+def base(codigo):
+    return CIDADES.get(codigo, codigo)
+
 # Aeroportos grandes onde dá para fazer conexão com companhias diferentes (inclui as low cost)
 HUBS = [
     # América do Sul e Central, Caribe, México
@@ -45,8 +58,8 @@ CONEXAO_MAX = 20 * 60
 
 
 def distancia(a, b):
-    """Distância em km entre dois aeroportos (círculo máximo)."""
-    p, q = AEROPORTOS[a], AEROPORTOS[b]
+    """Distância em km entre dois aeroportos ou cidades (círculo máximo)."""
+    p, q = AEROPORTOS[base(a)], AEROPORTOS[base(b)]
     la1, lo1, la2, lo2 = map(math.radians, (p["lat"], p["lon"], q["lat"], q["lon"]))
     h = math.sin((la2 - la1) / 2) ** 2 + math.cos(la1) * math.cos(la2) * math.sin((lo2 - lo1) / 2) ** 2
     return 6371 * 2 * math.asin(math.sqrt(h))
@@ -56,17 +69,18 @@ DISTANCIA_MINIMA = 3000  # km: em viagens curtas a conexão separada quase nunca
 
 
 def vale_tentar(origem, destino):
-    return origem in AEROPORTOS and destino in AEROPORTOS and distancia(origem, destino) >= DISTANCIA_MINIMA
+    return base(origem) in AEROPORTOS and base(destino) in AEROPORTOS and distancia(origem, destino) >= DISTANCIA_MINIMA
 
 
 def escolher_hubs(origem, destino, quantidade=10, desvio=1.35):
     """Conexões no caminho: as que menos aumentam a distância total (até 35% a mais)."""
-    if origem not in AEROPORTOS or destino not in AEROPORTOS:
+    if base(origem) not in AEROPORTOS or base(destino) not in AEROPORTOS:
         return []
+    da_cidade = {a for c in (origem, destino) if c in CIDADES for a in CIDADES_TODOS.get(c, [])}
     direto = distancia(origem, destino)
     candidatos = []
     for h in HUBS:
-        if h in (origem, destino) or h not in AEROPORTOS:
+        if h in (origem, destino, base(origem), base(destino)) or h in da_cidade or h not in AEROPORTOS:
             continue
         ida, resto = distancia(origem, h), distancia(h, destino)
         # Conexão colada na origem ou no destino não ajuda (ex.: GRU → GIG → ...)
