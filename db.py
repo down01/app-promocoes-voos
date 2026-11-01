@@ -1,5 +1,6 @@
 """Acesso ao Supabase pela API REST, usando a chave secreta (só no servidor)."""
 import os
+import time
 
 import requests
 
@@ -16,10 +17,23 @@ class Banco:
         if not chave.startswith("sb_"):
             self.sessao.headers["Authorization"] = f"Bearer {chave}"  # chave antiga (service_role JWT)
 
-    def _req(self, metodo, caminho, **kw):
-        r = self.sessao.request(metodo, f"{self.url}{caminho}", timeout=30, **kw)
-        r.raise_for_status()
-        return r.json() if r.content else None
+    def _req(self, metodo, caminho, tentativas=4, **kw):
+        # Durante a rodada geral o banco fica carregado (20 jobs gravando + recálculo das promoções)
+        # e às vezes demora ou devolve 5xx. Gravações são upserts e o rpc é idempotente: dá para repetir.
+        for tentativa in range(1, tentativas + 1):
+            try:
+                r = self.sessao.request(metodo, f"{self.url}{caminho}", timeout=60, **kw)
+                if r.status_code < 500 or tentativa == tentativas:
+                    r.raise_for_status()
+                    return r.json() if r.content else None
+                motivo = f"HTTP {r.status_code}"
+            except (requests.ConnectionError, requests.Timeout) as e:
+                if tentativa == tentativas:
+                    raise
+                motivo = type(e).__name__
+            espera = 5 * 2 ** (tentativa - 1)  # 5, 10, 20 s
+            print(f"Banco: {motivo} em {metodo} {caminho}; nova tentativa em {espera} s", flush=True)
+            time.sleep(espera)
 
     def selecionar(self, tabela, **params):
         return self._req("GET", f"/rest/v1/{tabela}", params=params)
