@@ -62,6 +62,10 @@ export default function FormEntrar({ proximo, modoInicial }: { proximo: string; 
       });
       if (error) {
         setErro(traduzir(error.message));
+      } else if (data.user && data.user.identities?.length === 0) {
+        // E-mail já cadastrado: o Supabase responde "ok" sem erro, mas não manda e-mail nenhum
+        setModo("entrar");
+        setErro("Já existe uma conta com este e-mail. Entre com sua senha ou use \"Esqueci minha senha\".");
       } else if (data.session) {
         router.push(proximo);
         router.refresh();
