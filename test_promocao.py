@@ -29,3 +29,14 @@ def test_mensagem_da_volta_inverte_a_rota():
                                                                 "paradas": "1 parada"}, "https://x")
     assert titulo == "Promoção em só a volta: SCL → VIX por R$ 1.208"
     assert "2027-05-07" in texto and "R$ 1.500" in texto
+
+
+def test_voo_de_busca_por_cidade_guarda_os_aeroportos():
+    from robo_voos import ler_voo
+    # Card real de "RIO → SAO" no Google Voos (01/11/2026)
+    texto = "\n".join(["20:15", " – ", "21:20", "LATAMOperado por Latam Airlines Brasil", "1h 5 min",
+                       "SDU–CGH", "Sem escalas", "64 kg CO2e", "Média de emissões", "R$ 358"])
+    voo = ler_voo(texto)
+    assert voo["aeroportos"] == "SDU–CGH"
+    assert voo["companhia"] == "LATAM"
+    assert voo["preco"] == 358 and voo["saida"] == "20:15"

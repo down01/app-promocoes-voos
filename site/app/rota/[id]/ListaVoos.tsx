@@ -5,6 +5,12 @@ import { reais } from "@/lib/formato";
 import { companhias, estiloCompanhia, linkReserva } from "@/lib/reserva";
 import type { Voo } from "@/lib/tipos";
 
+// "GIG–GRU" → ["GIG", "GRU"]; sem a informação, usa os códigos da viagem
+function pontas(v: Voo, origem: string, destino: string) {
+  const [o, d] = (v.aeroportos ?? "").split(/[–-]/);
+  return o && d ? [o, d] : [origem, destino];
+}
+
 function SeloCompanhia({ nome }: { nome: string }) {
   const c = estiloCompanhia(nome);
   return (
@@ -47,7 +53,9 @@ export default function ListaVoos({
   }
 
   const menor = Math.min(...voos.map((v) => v.preco));
-  const reserva = aberto ? linkReserva(aberto.companhia, origem, destino, ida, volta) : null;
+  const [abertoDe, abertoPara] = aberto ? pontas(aberto, origem, destino) : [origem, destino];
+  const reserva = aberto ? linkReserva(aberto.companhia, abertoDe, abertoPara, ida, volta) : null;
+  const variosAeroportos = new Set(voos.map((v) => v.aeroportos).filter(Boolean)).size > 1;
   const nomeReserva = aberto ? companhias(aberto.companhia) : [];
 
   return (
@@ -74,6 +82,9 @@ export default function ListaVoos({
                   {v.saida} <span className="text-slate-300">→</span> {v.chegada}
                 </p>
                 <p className="text-xs text-slate-500">
+                  {variosAeroportos && v.aeroportos && (
+                    <span className="mr-1 font-bold text-slate-700">{v.aeroportos.replace(/[–-]/, " → ")} ·</span>
+                  )}
                   {v.duracao} · {v.paradas}
                 </p>
               </div>
@@ -108,14 +119,14 @@ export default function ListaVoos({
 
             <div className="flex items-center justify-between gap-2">
               <div>
-                <p className="text-3xl font-black">{origem}</p>
+                <p className="text-3xl font-black">{abertoDe}</p>
                 <p className="text-sm font-semibold text-slate-600">{aberto.saida}</p>
               </div>
               <div className="relative flex-1 border-t-2 border-dashed border-sky-200">
                 <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 rounded-full bg-sky-600 px-1.5 text-white">✈</span>
               </div>
               <div className="text-right">
-                <p className="text-3xl font-black">{destino}</p>
+                <p className="text-3xl font-black">{abertoPara}</p>
                 <p className="text-sm font-semibold text-slate-600">{aberto.chegada}</p>
               </div>
             </div>

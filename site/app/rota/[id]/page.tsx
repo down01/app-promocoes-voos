@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { clienteServidor } from "@/lib/supabase/server";
+import { aeroportosDe } from "@/lib/aeroportos";
 import { data, haQuantoTempo, reais, trajeto } from "@/lib/formato";
 import type { Rota } from "@/lib/tipos";
 import Bilhete from "../../Bilhete";
@@ -86,15 +87,23 @@ export default async function PaginaRota({
   const hoje = new Date().toISOString().slice(0, 10);
   async function diasPerto(origem: string, destino: string, dataBase: string) {
     const inicio = somarDias(dataBase, -14);
+    // Cidade (RIO, SAO...): junta o calendário de cada par de aeroportos e fica com o menor preço do dia
+    const origens = [origem, ...aeroportosDe(origem).filter((a) => a !== origem)];
+    const destinos = [destino, ...aeroportosDe(destino).filter((a) => a !== destino)];
     const { data: dias } = await supabase
       .from("calendario")
       .select("data, preco, atualizado_em")
-      .eq("origem", origem)
-      .eq("destino", destino)
+      .in("origem", origens)
+      .in("destino", destinos)
       .gte("data", inicio < hoje ? hoje : inicio)
       .lte("data", somarDias(dataBase, 14))
       .order("data");
-    return (dias ?? []) as Dia[];
+    const menores = new Map<string, Dia>();
+    for (const d of (dias ?? []) as Dia[]) {
+      const atual = menores.get(d.data);
+      if (!atual || d.preco < atual.preco) menores.set(d.data, d);
+    }
+    return [...menores.values()];
   }
   const [calIda, calVolta] = await Promise.all([
     diasPerto(rota.origem, rota.destino, rota.data_ida),

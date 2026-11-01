@@ -1,8 +1,8 @@
-import { AEROPORTOS } from "@/lib/aeroportos";
+import { CIDADES, nomeCidade } from "@/lib/aeroportos";
 
-// Cidade sem o complemento entre parênteses: "São Paulo (Guarulhos)" → "São Paulo"
+// Cidade sem o complemento entre parênteses; código de cidade mostra que vale para todos os aeroportos
 function cidade(codigo: string) {
-  return (AEROPORTOS[codigo] ?? codigo).replace(/\s*\(.*\)/, "");
+  return CIDADES[codigo] ? `${nomeCidade(codigo)} · todos` : nomeCidade(codigo);
 }
 
 // Visual de cartão de embarque: códigos grandes, avião na linha tracejada e recortes nas laterais

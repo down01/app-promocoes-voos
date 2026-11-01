@@ -64,36 +64,93 @@ const PAISES: Record<string, string> = {
   CPT: "África do Sul", CAI: "Egito", CMN: "Marrocos", SYD: "Austrália", MEL: "Austrália", AKL: "Nova Zelândia",
 };
 
+// Cidades com mais de um aeroporto. O código da cidade (RIO, SAO...) é aceito pelo Google Voos,
+// que busca em todos os aeroportos dela e diz de qual sai cada voo (testado em 01/11/2026).
+export const CIDADES: Record<string, { nome: string; aeroportos: string[] }> = {
+  RIO: { nome: "Rio de Janeiro", aeroportos: ["GIG", "SDU"] },
+  SAO: { nome: "São Paulo", aeroportos: ["GRU", "CGH", "VCP"] },
+  BHZ: { nome: "Belo Horizonte", aeroportos: ["CNF", "PLU"] },
+  BUE: { nome: "Buenos Aires", aeroportos: ["EZE", "AEP"] },
+  NYC: { nome: "Nova York", aeroportos: ["JFK", "EWR"] },
+  LON: { nome: "Londres", aeroportos: ["LHR", "LGW"] },
+  PAR: { nome: "Paris", aeroportos: ["CDG", "ORY"] },
+  TYO: { nome: "Tóquio", aeroportos: ["NRT", "HND"] },
+};
+
+// Estado de cada aeroporto do Brasil, para achar por "minas", "espírito santo", "RJ"...
+const UF: Record<string, string> = {
+  VIX: "ES", BSB: "DF", GRU: "SP", CGH: "SP", VCP: "SP", GIG: "RJ", SDU: "RJ", CNF: "MG", PLU: "MG",
+  SSA: "BA", REC: "PE", FOR: "CE", POA: "RS", CWB: "PR", FLN: "SC", BEL: "PA", MAO: "AM", GYN: "GO",
+  CGB: "MT", CGR: "MS", NAT: "RN", MCZ: "AL", JPA: "PB", AJU: "SE", THE: "PI", SLZ: "MA", PMW: "TO",
+  PVH: "RO", RBR: "AC", BVB: "RR", MCP: "AP", IGU: "PR", NVT: "SC", LDB: "PR", UDI: "MG", IOS: "BA",
+  BPS: "BA", JDO: "CE", MOC: "MG", RAO: "SP", SJP: "SP", MGF: "PR", JOI: "SC", XAP: "SC", STM: "PA",
+  IMP: "MA", FEN: "PE", CAC: "PR", JJD: "CE", PNZ: "PE",
+};
+const ESTADOS: Record<string, string> = {
+  AC: "Acre", AL: "Alagoas", AP: "Amapá", AM: "Amazonas", BA: "Bahia", CE: "Ceará", DF: "Distrito Federal",
+  ES: "Espírito Santo", GO: "Goiás", MA: "Maranhão", MT: "Mato Grosso", MS: "Mato Grosso do Sul",
+  MG: "Minas Gerais", PA: "Pará", PB: "Paraíba", PR: "Paraná", PE: "Pernambuco", PI: "Piauí",
+  RJ: "Rio de Janeiro", RN: "Rio Grande do Norte", RS: "Rio Grande do Sul", RO: "Rondônia", RR: "Roraima",
+  SC: "Santa Catarina", SP: "São Paulo", SE: "Sergipe", TO: "Tocantins",
+};
+
 const semAcento = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 
-export type Sugestao = { codigo: string; nome: string; pais: string };
+// cidade = true quando o código vale para todos os aeroportos da cidade
+export type Sugestao = { codigo: string; nome: string; pais: string; cidade?: boolean };
 
-// Sugestões para o campo de aeroporto: aceita código, cidade ou país, com ou sem acento
+// Nota de quanto um nome combina com o texto digitado (0 = não combina)
+function combina(t: string, nome: string, notaInteira: number, notaPalavra: number) {
+  const n = semAcento(nome);
+  if (n.startsWith(t)) return notaInteira;
+  if (n.split(/[\s(]+/).some((p) => p.startsWith(t))) return notaPalavra;
+  return 0;
+}
+
+// Sugestões para o campo de aeroporto: aceita código, cidade, estado ou país, com ou sem acento.
+// Cidades com vários aeroportos aparecem com a opção "todos os aeroportos" logo antes deles.
 export function sugerirAeroportos(texto: string, limite = 8): Sugestao[] {
   const t = semAcento(texto);
   if (!t) return [];
   const resultados: { s: Sugestao; nota: number }[] = [];
   for (const [codigo, nome] of Object.entries(AEROPORTOS)) {
     const pais = PAISES[codigo] ?? "Brasil";
-    const n = semAcento(nome);
+    const uf = UF[codigo];
     let nota = 0;
     if (codigo.toLowerCase() === t) nota = 100;
-    else if (n.startsWith(t)) nota = 80;
-    else if (n.split(/[\s(]+/).some((p) => p.startsWith(t))) nota = 60;
-    else if (codigo.toLowerCase().startsWith(t)) nota = 50;
-    else if (semAcento(pais).split(" ").some((p) => p.startsWith(t))) nota = 40;
-    if (nota) resultados.push({ s: { codigo, nome, pais: pais.split(" ").slice(0, pais.startsWith("Estados") ? 2 : 3).join(" ") }, nota });
+    else nota = combina(t, nome, 80, 60);
+    if (!nota && codigo.toLowerCase().startsWith(t)) nota = 50;
+    if (!nota && uf && (uf.toLowerCase() === t || combina(t, ESTADOS[uf], 1, 1))) nota = 45;
+    if (!nota && semAcento(pais).split(" ").some((p) => p.startsWith(t))) nota = 40;
+    const rotuloPais = uf ? `${ESTADOS[uf]} · Brasil` : pais.split(" ").slice(0, pais.startsWith("Estados") ? 2 : 3).join(" ");
+    if (nota) resultados.push({ s: { codigo, nome, pais: rotuloPais }, nota });
+  }
+  for (const [codigo, c] of Object.entries(CIDADES)) {
+    const nota = codigo.toLowerCase() === t ? 100 : combina(t, c.nome, 80, 60);
+    // +1: fica na frente dos aeroportos da própria cidade
+    if (nota) resultados.push({ s: { codigo, nome: `${c.nome} (todos)`, pais: `Todos os aeroportos: ${c.aeroportos.join(", ")}`, cidade: true }, nota: nota + 1 });
   }
   return resultados
     // Empate: aeroportos do Brasil primeiro (o público é brasileiro), depois ordem alfabética
     .sort((a, b) =>
       b.nota - a.nota ||
-      Number(b.s.pais === "Brasil") - Number(a.s.pais === "Brasil") ||
+      Number(b.s.pais.endsWith("Brasil")) - Number(a.s.pais.endsWith("Brasil")) ||
       a.s.nome.localeCompare(b.s.nome))
     .slice(0, limite)
     .map((r) => r.s);
 }
 
+// Aeroportos que um código cobre: os da cidade, ou ele mesmo
+export function aeroportosDe(codigo: string) {
+  return CIDADES[codigo]?.aeroportos ?? [codigo];
+}
+
+// Nome curto da cidade: "São Paulo (Guarulhos)" → "São Paulo"
+export function nomeCidade(codigo: string) {
+  return (CIDADES[codigo]?.nome ?? AEROPORTOS[codigo] ?? codigo).replace(/\s*\(.*\)/, "");
+}
+
 export function nomeAeroporto(codigo: string) {
+  if (CIDADES[codigo]) return `${CIDADES[codigo].nome} – todos os aeroportos`;
   return AEROPORTOS[codigo] ? `${AEROPORTOS[codigo]} (${codigo})` : codigo;
 }

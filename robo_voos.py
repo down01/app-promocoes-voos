@@ -22,6 +22,7 @@ HISTORICO = PASTA / "historico_precos.csv"
 RE_HORA = re.compile(r"^\d{1,2}:\d{2}(\+\d)?$")
 RE_PRECO = re.compile(r"R\$\s?([\d.]+)")
 RE_DURACAO = re.compile(r"^\d+\s?h(\s?\d+\s?min)?$")
+RE_AEROPORTOS = re.compile(r"^[A-Z]{3}\s?[–-]\s?[A-Z]{3}$")  # "GIG–GRU" (aparece nas buscas por cidade)
 RE_PARADAS = re.compile(r"^(\d+ paradas?|Sem escalas|Direto)$", re.I)
 
 
@@ -74,6 +75,7 @@ def ler_voo(texto):
         "duracao": next((l for l in linhas if RE_DURACAO.match(l)), ""),
         "paradas": next((l for l in linhas if RE_PARADAS.match(l)), ""),
         "preco": int(preco.group(1).replace(".", "")),
+        "aeroportos": next((re.sub(r"\s", "", l) for l in linhas if RE_AEROPORTOS.match(l)), ""),
     }
 
 
@@ -139,7 +141,7 @@ def organizar(textos):
         voo = ler_voo(texto)
         if not voo:
             continue
-        chave = (voo["saida"], voo["chegada"], voo["companhia"], voo["preco"])
+        chave = (voo["saida"], voo["chegada"], voo["companhia"], voo["preco"], voo["aeroportos"])
         if chave not in vistos:
             vistos.add(chave)
             voos.append(voo)

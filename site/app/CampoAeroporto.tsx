@@ -90,7 +90,11 @@ export default function CampoAeroporto({
                 i === ativo ? "bg-sky-50" : ""
               }`}
             >
-              <span className="grid h-10 w-12 shrink-0 place-items-center rounded-lg bg-sky-600 text-sm font-black text-white">
+              <span
+                className={`grid h-10 w-12 shrink-0 place-items-center rounded-lg text-sm font-black text-white ${
+                  s.cidade ? "bg-emerald-600" : "bg-sky-600"
+                }`}
+              >
                 {s.codigo}
               </span>
               <span className="grid min-w-0">

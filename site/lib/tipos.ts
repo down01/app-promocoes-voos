@@ -5,6 +5,7 @@ export type Voo = {
   duracao: string;
   paradas: string;
   preco: number;
+  aeroportos?: string; // "GIG–GRU": de qual aeroporto sai e chega (buscas por cidade)
 };
 
 export type Rota = {
