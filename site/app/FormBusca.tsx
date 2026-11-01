@@ -2,17 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { sugerirAeroportos } from "@/lib/aeroportos";
+import { codigoDoTexto, ehGrupo } from "@/lib/aeroportos";
 import CampoAeroporto from "./CampoAeroporto";
 
-// Aceita "Vitória (VIX)" da lista, "VIX"/"vix", ou uma cidade digitada sem escolher ("vitoria")
-function codigo(texto: string) {
-  const entre = texto.match(/\(([A-Za-z]{3})\)\s*$/);
-  if (entre) return entre[1].toUpperCase();
-  const limpo = texto.trim();
-  if (/^[A-Za-z]{3}$/.test(limpo)) return limpo.toUpperCase();
-  return sugerirAeroportos(limpo, 1)[0]?.codigo ?? "";
-}
+const VALIDO = (c: string) => /^[A-Z]{3}$/.test(c) || ehGrupo(c);
 
 export default function FormBusca({ origemPadrao = "" }: { origemPadrao?: string }) {
   const router = useRouter();
@@ -27,22 +20,29 @@ export default function FormBusca({ origemPadrao = "" }: { origemPadrao?: string
   async function buscar(e: React.FormEvent) {
     e.preventDefault();
     setErro("");
-    const o = codigo(origem);
-    const d = codigo(destino);
-    if (!/^[A-Z]{3}$/.test(o) || !/^[A-Z]{3}$/.test(d)) {
+    const o = codigoDoTexto(origem);
+    const d = codigoDoTexto(destino);
+    if (!VALIDO(o) || !VALIDO(d)) {
       setErro("Não achei esse lugar. Comece a digitar a cidade e escolha na lista (ex.: Vitória).");
       return;
     }
+    const voltaFinal = soIda ? null : volta || null;
+    // País ou estado inteiro: o site busca cada aeroporto e mostra a comparação
+    const comparar = ehGrupo(o) || ehGrupo(d);
     setEnviando(true);
-    const r = await fetch("/api/buscar", {
+    const r = await fetch(comparar ? "/api/comparar" : "/api/buscar", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ origem: o, destino: d, ida, volta: soIda ? null : volta || null }),
+      body: JSON.stringify({ origem: o, destino: d, ida, volta: voltaFinal }),
     });
     const resposta = await r.json();
     if (!r.ok) {
       setErro(resposta.erro ?? "Não deu para buscar agora.");
       setEnviando(false);
+      return;
+    }
+    if (comparar) {
+      router.push(`/comparar?o=${o}&d=${d}&ida=${ida}` + (voltaFinal ? `&volta=${voltaFinal}` : ""));
       return;
     }
     router.push(`/rota/${resposta.rota_id}`);

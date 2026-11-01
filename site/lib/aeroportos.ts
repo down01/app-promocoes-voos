@@ -96,8 +96,49 @@ const ESTADOS: Record<string, string> = {
 
 const semAcento = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 
-// cidade = true quando o código vale para todos os aeroportos da cidade
-export type Sugestao = { codigo: string; nome: string; pais: string; cidade?: boolean };
+// cidade = true quando o código vale para todos os aeroportos da cidade;
+// grupo = país ou estado inteiro (o site busca cada aeroporto e compara)
+export type Sugestao = { codigo: string; nome: string; pais: string; cidade?: boolean; grupo?: boolean; selo?: string };
+
+// Nome do país para mostrar ("Estados Unidos EUA Disney" é só para a busca achar)
+function nomePais(pais: string) {
+  if (pais.startsWith("Estados Unidos")) return "Estados Unidos";
+  if (pais.startsWith("Inglaterra")) return "Reino Unido";
+  if (pais.startsWith("Hong Kong")) return "Hong Kong";
+  return pais;
+}
+
+const MAX_POR_GRUPO = 8; // mais que isso vira busca demais para o robô
+
+// Grupos com 2 ou mais aeroportos: países (fora o Brasil) e estados. id: "pais-chile", "uf-sp"
+export const GRUPOS: Record<string, { nome: string; tipo: "país" | "estado"; aeroportos: string[]; busca: string }> = (() => {
+  const g: Record<string, { nome: string; tipo: "país" | "estado"; aeroportos: string[]; busca: string }> = {};
+  for (const codigo of Object.keys(AEROPORTOS)) {
+    const pais = PAISES[codigo];
+    const uf = UF[codigo];
+    const [id, nome, tipo, busca] = pais
+      ? [`pais-${semAcento(nomePais(pais)).replace(/\s+/g, "-")}`, nomePais(pais), "país" as const, pais]
+      : uf
+        ? [`uf-${uf.toLowerCase()}`, ESTADOS[uf], "estado" as const, `${ESTADOS[uf]} ${uf}`]
+        : [null, "", "país" as const, ""];
+    if (!id) continue;
+    g[id] ??= { nome, tipo, aeroportos: [], busca };
+    if (g[id].aeroportos.length < MAX_POR_GRUPO) g[id].aeroportos.push(codigo);
+  }
+  // Fora: grupo de um aeroporto só, ou igual a uma cidade (estado do RJ = Galeão + Santos Dumont = RIO)
+  const mesmos = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x));
+  for (const id of Object.keys(g)) {
+    if (g[id].aeroportos.length < 2 || Object.values(CIDADES).some((c) => mesmos(c.aeroportos, g[id].aeroportos))) delete g[id];
+  }
+  return g;
+})();
+
+export const ehGrupo = (codigo: string) => codigo in GRUPOS;
+
+export function rotuloGrupo(id: string) {
+  const g = GRUPOS[id];
+  return g ? `${g.nome} (${g.tipo === "país" ? "país inteiro" : "estado inteiro"})` : id;
+}
 
 // Nota de quanto um nome combina com o texto digitado (0 = não combina)
 function combina(t: string, nome: string, notaInteira: number, notaPalavra: number) {
@@ -126,9 +167,22 @@ export function sugerirAeroportos(texto: string, limite = 8): Sugestao[] {
     if (nota) resultados.push({ s: { codigo, nome, pais: rotuloPais }, nota });
   }
   for (const [codigo, c] of Object.entries(CIDADES)) {
-    const nota = codigo.toLowerCase() === t ? 100 : combina(t, c.nome, 80, 60);
+    // Fora do Brasil a cidade também aparece pelo país ("frança" → Paris (todos))
+    const pais = PAISES[c.aeroportos[0]];
+    const nota = codigo.toLowerCase() === t ? 100 : combina(t, c.nome, 80, 60) || (pais ? combina(t, pais, 79, 59) : 0);
     // +1: fica na frente dos aeroportos da própria cidade
     if (nota) resultados.push({ s: { codigo, nome: `${c.nome} (todos)`, pais: `Todos os aeroportos: ${c.aeroportos.join(", ")}`, cidade: true }, nota: nota + 1 });
+  }
+  for (const [id, g] of Object.entries(GRUPOS)) {
+    // Pelo nome inteiro ou palavra (país também pelos apelidos: "eua"); estado também pela sigla
+    let nota = combina(t, g.busca, 80, 60);
+    if (g.tipo === "estado" && t === id.slice(3)) nota = 80;
+    // Logo abaixo da cidade com o mesmo nome ("São Paulo (todos)" antes de "São Paulo (estado inteiro)")
+    if (nota) resultados.push({
+      s: { codigo: id, nome: rotuloGrupo(id), pais: `Compara: ${g.aeroportos.join(", ")}`, grupo: true,
+           selo: g.tipo === "estado" ? id.slice(3).toUpperCase() : "🌎" },
+      nota: nota + 0.5,
+    });
   }
   return resultados
     // Empate: aeroportos do Brasil primeiro (o público é brasileiro), depois ordem alfabética
@@ -143,6 +197,22 @@ export function sugerirAeroportos(texto: string, limite = 8): Sugestao[] {
 // Aeroportos que um código cobre: os da cidade, ou ele mesmo
 export function aeroportosDe(codigo: string) {
   return CIDADES[codigo]?.aeroportos ?? [codigo];
+}
+
+// Códigos a buscar para um campo: os do grupo (país/estado), ou o próprio código (aeroporto ou cidade)
+export function membrosDe(codigo: string) {
+  return GRUPOS[codigo]?.aeroportos ?? [codigo];
+}
+
+// Texto do campo → código: "Vitória (VIX)", "VIX", "Chile (país inteiro)" ou o que foi digitado
+export function codigoDoTexto(texto: string) {
+  const entre = texto.match(/\(([A-Za-z]{3})\)\s*$/);
+  if (entre) return entre[1].toUpperCase();
+  const limpo = texto.trim();
+  const grupo = Object.keys(GRUPOS).find((id) => rotuloGrupo(id) === limpo);
+  if (grupo) return grupo;
+  if (/^[A-Za-z]{3}$/.test(limpo)) return limpo.toUpperCase();
+  return sugerirAeroportos(limpo, 1)[0]?.codigo ?? "";
 }
 
 // Nome curto da cidade: "São Paulo (Guarulhos)" → "São Paulo"

@@ -18,12 +18,12 @@ export default function CampoAeroporto({
   const id = useId();
   const [aberto, setAberto] = useState(false);
   const [ativo, setAtivo] = useState(0);
-  const sugestoes = aberto ? sugerirAeroportos(valor.replace(/\s*\([A-Z]{3}\)\s*$/, "")) : [];
+  const sugestoes = aberto ? sugerirAeroportos(valor.replace(/\s*\(([A-Z]{3}|todos|país inteiro|estado inteiro)\)\s*$/g, "")) : [];
 
   function escolher(i: number) {
     const s = sugestoes[i];
     if (!s) return;
-    aoMudar(`${s.nome} (${s.codigo})`);
+    aoMudar(s.grupo ? s.nome : `${s.nome} (${s.codigo})`);
     setAberto(false);
   }
 
@@ -92,10 +92,10 @@ export default function CampoAeroporto({
             >
               <span
                 className={`grid h-10 w-12 shrink-0 place-items-center rounded-lg text-sm font-black text-white ${
-                  s.cidade ? "bg-emerald-600" : "bg-sky-600"
+                  s.cidade || s.grupo ? "bg-emerald-600" : "bg-sky-600"
                 }`}
               >
-                {s.codigo}
+                {s.selo ?? s.codigo}
               </span>
               <span className="grid min-w-0">
                 <span className="truncate font-semibold text-slate-900">{s.nome}</span>
