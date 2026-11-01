@@ -1,11 +1,33 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { codigoDoTexto, ehGrupo } from "@/lib/aeroportos";
 import CampoAeroporto from "./CampoAeroporto";
 
 const VALIDO = (c: string) => /^[A-Z]{3}$/.test(c) || ehGrupo(c);
+
+// Última busca guardada no aparelho, para não precisar digitar tudo de novo ao recarregar a página
+const CHAVE = "ultima-busca";
+type Guardada = { origem: string; destino: string; ida: string; volta: string; soIda: boolean };
+
+function lerGuardada(): Guardada | null {
+  try {
+    const g = JSON.parse(localStorage.getItem(CHAVE) ?? "null") as Guardada | null;
+    if (!g) return null;
+    const hoje = new Date().toISOString().slice(0, 10);
+    // Datas que já passaram não voltam
+    return { ...g, ida: g.ida >= hoje ? g.ida : "", volta: g.volta >= hoje ? g.volta : "" };
+  } catch {
+    return null; // navegador sem localStorage (modo anônimo de alguns celulares)
+  }
+}
+
+function guardar(g: Guardada) {
+  try {
+    localStorage.setItem(CHAVE, JSON.stringify(g));
+  } catch {}
+}
 
 export default function FormBusca({ origemPadrao = "" }: { origemPadrao?: string }) {
   const router = useRouter();
@@ -17,6 +39,28 @@ export default function FormBusca({ origemPadrao = "" }: { origemPadrao?: string
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState("");
 
+  // Volta a última busca (depois do primeiro desenho, para o servidor e o navegador mostrarem o mesmo)
+  useEffect(() => {
+    const g = lerGuardada();
+    if (!g) return;
+    /* eslint-disable react-hooks/set-state-in-effect -- leitura única do localStorage */
+    if (!origemPadrao) setOrigem(g.origem);
+    setDestino(g.destino);
+    setIda(g.ida);
+    setVolta(g.volta);
+    setSoIda(g.soIda);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [origemPadrao]);
+
+  // Ao voltar para a página inicial, o navegador/Next devolve o formulário como ficou ao sair,
+  // com o botão em "Buscando…". Destrava sempre que ele aparece de novo.
+  useEffect(() => {
+    setEnviando(false); // eslint-disable-line react-hooks/set-state-in-effect
+    const aoVoltar = () => setEnviando(false);
+    window.addEventListener("pageshow", aoVoltar);
+    return () => window.removeEventListener("pageshow", aoVoltar);
+  }, []);
+
   async function buscar(e: React.FormEvent) {
     e.preventDefault();
     setErro("");
@@ -27,6 +71,7 @@ export default function FormBusca({ origemPadrao = "" }: { origemPadrao?: string
       return;
     }
     const voltaFinal = soIda ? null : volta || null;
+    guardar({ origem, destino, ida, volta, soIda });
     // País ou estado inteiro: o site busca cada aeroporto e mostra a comparação
     const comparar = ehGrupo(o) || ehGrupo(d);
     setEnviando(true);
